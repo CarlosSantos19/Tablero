@@ -1,0 +1,602 @@
+<html lang="es"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CNE · Análisis Previo Certificador · Territoriales 2023</title>
+
+<!-- Bootstrap 5 -->
+<link rel="stylesheet" href="vendor/css/bootstrap.min.css">
+<!-- DataTables -->
+<link rel="stylesheet" href="vendor/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="vendor/css/buttons.bootstrap5.min.css">
+<!-- Font Awesome -->
+<link rel="stylesheet" href="vendor/css/all.min.css">
+<!-- Estilos propios -->
+<link rel="stylesheet" href="css/estilos.css">
+
+<!-- PDF.js para lector de dictamen sin Python -->
+<script src="vendor/js/pdf.min.js"></script>
+<script src="vendor/js/tesseract.min.js"></script>
+
+</head>
+<body>
+
+<!-- ══ OVERLAY LOGIN CNE — bloquea portal hasta autenticarse ══ -->
+<div id="cneLoginOverlay" style="position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#003478 0%,#001a3d 100%);z-index:9999;display:flex;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:12px;padding:2.5rem;width:420px;max-width:95%;box-shadow:0 8px 32px rgba(0,0,0,.4);">
+    <div class="text-center mb-3">
+      <i class="fa fa-university" style="font-size:2.5rem;color:#003478;"></i>
+      <h4 class="mt-2 mb-0" style="color:#003478;font-weight:700;">Iniciar Sesión</h4>
+      <div class="text-muted small">CNE — CUENTAS CLARAS</div>
+    </div>
+    <div id="cneLoginOverlayMsg" class="alert alert-info py-2 small mb-2 text-center" style="display: block;"><i class="fa fa-lock me-1"></i>Ingrese sus credenciales para acceder al portal.</div>
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">Usuario (Cédula)</label>
+      <input type="text" id="cneLoginUser" class="form-control" placeholder="Número de documento" autocomplete="username">
+    </div>
+    <div class="mb-3">
+      <label class="form-label small fw-semibold">Contraseña</label>
+      <div class="input-group">
+        <input type="password" id="cneLoginPass" class="form-control" placeholder="Contraseña" autocomplete="current-password" onkeydown="if(event.key==='Enter')_cneLoginManual();">
+        <button class="btn btn-outline-secondary" type="button" onclick="var p=document.getElementById('cneLoginPass'),i=this.querySelector('i');if(p.type==='password'){p.type='text';i.className='fa fa-eye-slash';}else{p.type='password';i.className='fa fa-eye';}">
+          <i class="fa fa-eye"></i>
+        </button>
+      </div>
+    </div>
+    <button id="cneLoginBtn" class="btn w-100 text-white" style="background:#003478;" onclick="_cneLoginManual()">
+      <i class="fa fa-sign-in-alt me-1"></i>Iniciar Sesión
+    </button>
+    <div class="text-center mt-3 small text-muted">
+      <i class="fa fa-info-circle me-1"></i>Use sus credenciales del portal CNE-Cuentas Claras.
+    </div>
+  </div>
+</div>
+
+<!-- NAVBAR -->
+<nav class="navbar navbar-expand-lg navbar-dark">
+  <div class="container-fluid">
+    <a class="navbar-brand fw-bold" href="#">
+      🏛 CNE · Análisis Previo Certificador · Territoriales 2023
+    </a>
+    <span class="navbar-text text-warning fw-bold" id="resumenStats">128.398 candidatos  |  Art.23: <span class="text-danger fw-bold">150</span>  |  Art.27: <span class="text-danger fw-bold">101.120</span>  |  Art.34: <span class="text-danger fw-bold">16.691</span>  |  2.014 no presentaron  |  0 extemporáneos  |  2.014 revocados</span>
+    <button class="btn btn-sm btn-outline-light ms-3" onclick="_cneRequireLogin()" title="Cerrar sesión CNE">
+      <i class="fa fa-sign-out-alt me-1"></i>Cerrar Sesión
+    </button>
+  </div>
+</nav>
+
+<div class="container-fluid">
+<div class="row">
+
+<!-- SIDEBAR -->
+<div class="col-lg-2 sidebar p-3">
+  <div class="fw-bold text-uppercase text-muted small mb-3">Flujo de análisis</div>
+
+  <div class="paso activo" onclick="irPaso(1)" id="step1">
+    <span class="paso-num">1</span>
+    <span class="ms-2 fw-semibold">Análisis Global y Soportes</span>
+    <div class="small text-muted mt-1">Corp / Dpto / Mun / Partido</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(2)" id="step2">
+    <span class="paso-num">2</span>
+    <span class="ms-2 fw-semibold">Dictamen</span>
+    <div class="small text-muted mt-1">Criterios legales · JCC auditor</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(3)" id="step3">
+    <span class="paso-num">3</span>
+    <span class="ms-2 fw-semibold">9B y Anexos</span>
+    <div class="small text-muted mt-1">Formato 9B · Fechas · MAI/SAI</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(4)" id="step4">
+    <span class="paso-num">4</span>
+    <span class="ms-2 fw-semibold">Estado · Alertas · Financiero</span>
+    <div class="small text-muted mt-1">Renuncias · Informe · Artículos · Votos</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(5)" id="step5">
+    <span class="paso-num">5</span>
+    <span class="ms-2 fw-semibold">Candidatos</span>
+    <div class="small text-muted mt-1">8B · Transacciones · Por candidato</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(7)" id="step7">
+    <span class="paso-num">7</span>
+    <span class="ms-2 fw-semibold">OBSERVACIONES</span>
+    <div class="small text-muted mt-1">Resumen y hallazgos finales</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(8)" id="step8">
+    <span class="paso-num">8</span>
+    <span class="ms-2 fw-semibold">Respuesta al Oficio</span>
+    <div class="small text-muted mt-1">Proyecto de respuesta oficial</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(9)" id="step9">
+    <span class="paso-num">9</span>
+    <span class="ms-2 fw-semibold">Investigaciones</span>
+    <div class="small text-muted mt-1">Causales · Artículos · Oficios</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(10)" id="step10">
+    <span class="paso-num">10</span>
+    <span class="ms-2 fw-semibold">Certificado</span>
+    <div class="small text-muted mt-1">Datos · Resumen · Plantilla</div>
+  </div>
+
+  <div class="paso" onclick="irPaso(11)" id="step11">
+    <span class="paso-num">11</span>
+    <span class="ms-2 fw-semibold">Liquidación</span>
+    <div class="small text-muted mt-1">Primera · Segunda · MI Informe</div>
+  </div>
+
+  <hr>
+  <div class="paso" onclick="irPaso(12)" id="step12">
+    <span class="paso-num"><i class="fa fa-table" style="font-size:.7rem"></i></span>
+    <span class="ms-2 fw-semibold">Todos</span>
+    <div class="small text-muted mt-1">Vista completa + exportar</div>
+  </div>
+
+  <hr>
+  <div class="paso" onclick="irPaso(13)" id="step13">
+    <span class="paso-num"><i class="fa fa-cloud-download-alt" style="font-size:.7rem"></i></span>
+    <span class="ms-2 fw-semibold">Cuentas Claras</span>
+    <div class="small text-muted mt-1">8B · 9B · IG · Libro Contable</div>
+  </div>
+</div><!-- /sidebar -->
+
+
+<!-- MAIN -->
+<div class="col-lg-10 p-3">
+
+  <!-- PASO 1: BUSCAR -->
+  <div class="seccion activa" id="sec1">
+    <h5 class="fw-bold mb-2"><i class="fa fa-search me-2 text-primary"></i>Paso 1 · Análisis Global y Soportes</h5>
+    <div id="sec1CandBanner" style="display:none" class="mb-3"></div>
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="row g-2">
+          <div class="col-md-12 mb-1">
+            <label class="form-label fw-semibold small">Proceso Electoral</label>
+            <select id="selProceso" class="form-select form-select-sm" onchange="cambiarProceso()"><option value="1">ELECCIONES CONGRESO DE LA REPUBLICA - 2022 (2022-03-13)</option><option value="2">CONSULTAS INTERNAS DE PRESIDENCIA - 2022 (2022-03-13)</option><option value="3">ELECCIONES PRESIDENCIA DE LA REPUBLICA - 2022 (PRIMERA VUELTA) (2022-05-29)</option><option value="4">ELECCIONES PRESIDENCIA DE LA REPUBLICA - 2022 (SEGUNDA VUELTA) (2022-06-19)</option><option value="5">COMITE DE RECOLECCION DE FIRMAS ELECCIONES TERRITORIALES - 2023 (2023-07-29)</option><option value="6">Consultas Internas, interpartidistas 2023 - 2023 (2023-06-04)</option><option value="7">ELECCIONES TERRITORIALES 2023 (2023-10-29)</option><option value="8">ELECCIONES TERRITORIALES 2023 GAMARRA (2023-12-24) (2023-12-24)</option><option value="41">ELECCIONES ATIPICAS NUEVO BELEN - 2024 (2024-06-09)</option><option value="42">ELECCIONES ATIPICAS ILES (NARIÑO) - 2024 (2024-11-03)</option><option value="64">ELECCIONES ATIPICAS MELGAR TOLIMA - 2025 (2025-08-17)</option><option value="43">ELECCIONES ATÍPICAS JAL - 2024 (2024-11-17)</option><option value="44">ELECCION ATÍPICA AGUACHICA - CESAR - 2024 (2024-11-24)</option><option value="45">ELECCION ATÍPICA VENECIA - ANTIOQUIA - 2024 (2024-12-29)</option><option value="46">ELECCIONES ATIPICAS GOBERNACION PUTUMAYO 2025 - 2025 (2025-02-23)</option><option value="47">ELECCIONES ATIPICAS ALCALDIA PTO GUZMAN PUTUMAYO - 2025 (2025-02-23)</option><option value="48">ELECCIONES ATIPICAS ALCALDIA ROSARIO - NARIÑO - 2025 (2025-03-09)</option><option value="65">ELECCIONES ATIPICAS ALCALDIA VILLETA - CUNDINAMARCA- 2025 - 2025 (2025-11-09)</option><option value="49">ELECCIONES ATIPICAS ALCALDIA PAMPLONITA - NORTE DE SANTANDER - 2025 (2025-03-09)</option><option value="50">ELECCIONES ATIPICAS ALCALDIA CHIRIGUANA - CESAR - 2025 (2025-03-30)</option><option value="66">ELECCIONES ATIPICAS GOBERNACION - MAGDALENA - 2025 (2025-11-23)</option><option value="51">ELECCIONES ATIPICAS ALCALDIA APARTADO - ANTIOQUIA - 2025 (2025-04-06)</option><option value="52">ELECCIONES ATIPICAS ALCALDIA DUITAMA - BOYACA - 2025 (2025-05-04)</option><option value="53">ELECCIONES ATIPICAS ALCALDIA NUEVO COLON - BOYACA - 2025 (2025-05-04)</option><option value="54">ELECCIONES ATIPICAS ALCALDIA LA VICTORIA - BOYACA - 2025 (2025-05-04)</option><option value="55">ELECCIONES ATIPICAS ALCALDIA COYAIMA - TOLIMA - 2025 (2025-05-18)</option><option value="56">ELECCIONES ATIPICAS ALCALDIA OIBA - SANTANDER - 2025 (2025-05-18)</option><option value="57">ELECCIONES ATIPICAS ALCALDIA LA JAGUA DEL PILAR - LA GUAJIRA - 2025 (2025-05-18)</option><option value="58">ELECCIONES ATIPICAS GOBERNACION - VICHADA - 2025 (2025-06-15)</option><option value="67">ELECCIONES ATIPICAS ALCALDIA - BUCARAMANGA - 2025 (2025-12-14)</option><option value="60">ELECCIONES ATIPICAS ALCALDIA CHITARAQUE - BOYACA - 2025 (2025-06-29)</option><option value="61">ELECCIONES ATIPICAS ALCALDIA INZA - CAUCA - 2025 (2025-06-29)</option><option value="68">ELECCIONES ATIPICAS ALCALDIA - GIRON- 2026 (2026-01-18)</option><option value="69">ELECCIONES ATIPICAS ALCALDIA - PONEDERA ATLANTICO - 2026 (2026-02-01)</option><option value="63">Consejo Municipal de Juventudes 2025 - 2025 (2025-10-19)</option><option value="62">COMITE RECOLECTOR DE FIRMAS PARA JUVENTUDES - 2025 (2025-10-19)</option></select>
+          </div>
+        </div>
+        <div class="row g-2">
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small">Corporación</label>
+            <select id="selCorp" class="form-select form-select-sm" onchange="filtrarDpto()"><option value="">-- Seleccione --</option><option value="ALCALDIA">Alcaldia</option><option value="ASAMBLEA">Asamblea</option><option value="CONCEJO">Concejo</option><option value="GOBERNACION">Gobernacion</option><option value="JUNTA ADMINISTRADORAS LOCALES">Junta Administradoras Locales</option></select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small">Departamento</label>
+            <select id="selDpto" class="form-select form-select-sm" onchange="filtrarMun()">
+              <option value="">-- Seleccione --</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small">Municipio</label>
+            <select id="selMun" class="form-select form-select-sm" onchange="filtrarPartido()">
+              <option value="">-- Seleccione --</option>
+            </select>
+          </div>
+          <div class="col-md-3">
+            <label class="form-label fw-semibold small">Partido</label>
+            <select id="selPartido" class="form-select form-select-sm" onchange="buscarCandidatos()">
+              <option value="">-- Todos --</option>
+            </select>
+          </div>
+        </div>
+        <div class="row g-2 mt-1">
+          <div class="col-md-6">
+            <label class="form-label fw-semibold small">Nombre o cédula</label>
+            <input type="text" id="txtBuscar" class="form-control form-control-sm" placeholder="Nombre completo o número de cédula..." oninput="buscarCandidatos()">
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-sm btn-outline-secondary w-100" onclick="limpiarFiltros()">
+              <i class="fa fa-times me-1"></i>Limpiar
+            </button>
+          </div>
+          <div class="col-md-2 d-flex align-items-end">
+            <button class="btn btn-sm btn-primary w-100" onclick="buscarCandidatos()">
+              <i class="fa fa-search me-1"></i>Buscar
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL RESUMEN FILTRO ACTUAL -->
+    <div id="panelResumen" style="display:none" class="my-2">
+      <!-- Fila 1: Financiero -->
+      <div class="d-flex gap-1 mb-1">
+        <div class="card text-center border-success" style="flex:1;min-width:100px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Total Ingresos</div>
+            <div class="fw-bold text-success" id="resIngTotal" style="font-size:.78rem">$0</div>
+          </div>
+        </div>
+        <div class="card text-center border-primary" style="flex:1;min-width:100px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Total Gastos</div>
+            <div class="fw-bold text-primary" id="resGasTotal" style="font-size:.78rem">$0</div>
+          </div>
+        </div>
+        <div class="card text-center" style="flex:1;min-width:70px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Censo</div>
+            <div class="fw-bold text-dark" id="resCenso" style="font-size:.78rem">—</div>
+          </div>
+        </div>
+        <div class="card text-center border-info" style="flex:1;min-width:100px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Tope General</div>
+            <div class="fw-bold text-info" id="resTopeGeneral" style="font-size:.78rem">—</div>
+          </div>
+        </div>
+      </div>
+      <!-- Fila 2: Votos -->
+      <div class="d-flex gap-1 mb-1">
+        <div class="card text-center" style="flex:1;min-width:80px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Votos Cand.</div>
+            <div class="fw-bold text-dark" id="resVotos" style="font-size:.78rem">0</div>
+          </div>
+        </div>
+        <div class="card text-center border-warning" style="flex:1;min-width:90px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Votos Partido</div>
+            <input type="number" id="resVotosPartido" class="form-control form-control-sm text-center fw-bold p-0" placeholder="0" style="font-size:.78rem;height:22px" oninput="actualizarTotalVotos()">
+          </div>
+        </div>
+        <div class="card text-center" style="flex:1;min-width:80px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Total Votos</div>
+            <div class="fw-bold text-dark" id="resTotalVotos" style="font-size:.78rem">0</div>
+          </div>
+        </div>
+        <div class="card text-center border-secondary" style="flex:1;min-width:100px">
+          <div class="card-body py-1 px-1">
+            <div style="font-size:.7rem" class="text-muted fw-semibold">Valor x Voto</div>
+            <div class="fw-bold text-dark" id="resValorVoto" style="font-size:.78rem">—</div>
+          </div>
+        </div>
+      </div>
+      <!-- Vista Global -->
+      <div class="bg-primary bg-gradient text-white rounded-top px-3 py-1 small fw-semibold">
+        <i class="fa fa-globe me-1"></i>Vista Global — <span id="resVistaLabel">—</span>
+      </div>
+      <div class="d-flex gap-0 flex-wrap border border-primary rounded-bottom mb-1" style="background:#f0f6ff">
+        <div class="text-center px-2 py-2 border-end" style="flex:1;min-width:70px">
+          <div class="fw-bold text-dark" id="resCandCount" style="font-size:.95rem">0</div>
+          <div style="font-size:.65rem" class="text-muted">Candidatos</div>
+        </div>
+        <div class="text-center px-2 py-2 border-end" style="flex:1;min-width:100px">
+          <div class="fw-bold text-info" id="resTopeGeneral2" style="font-size:.95rem">—</div>
+          <div style="font-size:.65rem" class="text-muted">Tope General</div>
+        </div>
+        <div class="text-center px-2 py-2" style="flex:1;min-width:120px">
+          <div class="fw-bold text-warning" id="resTopeCand" style="font-size:.95rem">—</div>
+          <div style="font-size:.65rem" class="text-muted">Tope x Candidato</div>
+        </div>
+      </div>
+      <!-- Cuadro comparativo: Gastos vs Valor del Voto × Votos -->
+      <div id="resComparativoWrap" class="mb-1" style="display:none">
+        <div class="card border-success">
+          <div class="card-body py-2 px-3">
+            <div class="row align-items-center g-1">
+              <div class="col-md-4 text-center">
+                <div style="font-size:.7rem" class="text-muted fw-semibold">Total Gastos</div>
+                <div class="fw-bold" id="resCompGastos" style="font-size:.85rem">$0</div>
+              </div>
+              <div class="col-md-1 text-center fw-bold text-muted">vs</div>
+              <div class="col-md-4 text-center">
+                <div style="font-size:.7rem" class="text-muted fw-semibold">Valor Voto × Votos</div>
+                <div class="fw-bold" id="resCompVxV" style="font-size:.85rem">$0</div>
+              </div>
+              <div class="col-md-3 text-center">
+                <div id="resCompResultado" class="fw-bold" style="font-size:.85rem"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Elementos ocultos para compatibilidad con JS -->
+      <div id="resDerechoWrap" style="display:none">
+        <input type="hidden" id="resDerUmbralInput" value="0">
+        <span id="resDerVotosPartido" style="display:none">0</span>
+        <span id="resDerPctLabel" style="display:none"></span>
+        <span id="resDerUmbral50" style="display:none"></span>
+        <span id="resDerResultado" style="display:none"></span>
+        <span id="resDerechoCard" style="display:none"></span>
+      </div>
+      <!-- Partidos del certificado electoral (auto-llenado desde cert_umbrales.json) -->
+      <div id="resCertPartidosWrap" class="mb-2"></div>
+      <!-- SOPORTES — card único con todo adentro -->
+      <div id="resDocVisor" class="card mt-3" style="display:none">
+        <div class="card-header bg-dark text-white fw-bold"><i class="fa fa-folder-open me-2"></i>SOPORTES</div>
+        <div class="card-body p-2">
+        <!-- Certificado Electoral -->
+        <div class="fw-semibold small mt-1 mb-1"><i class="fa fa-certificate me-1 text-success"></i>Certificado Electoral</div>
+        <div id="resCertificadoWrap"></div>
+        <hr class="my-2">
+        <!-- PDFs del Visor inline: Acuerdo, E6, E7, E8 -->
+        <div class="fw-semibold small mt-1 mb-1"><i class="fa fa-file-pdf me-1 text-danger"></i>Documentos del Visor (PDFs)</div>
+        <div id="resDocVisorPDFs"><span class="text-muted small">Seleccione filtros...</span></div>
+        <hr class="my-2">
+        <!-- Cuentas Claras: Gestión Municipal + Soportes por Candidato (misma presentación módulo 13) -->
+        <div id="resGestionMunP1" style="display:none"></div>
+        <div id="resDocPorCandidato" style="display:none"></div>
+        <!-- Herramientas -->
+        <div class="fw-semibold small mb-1"><i class="fa fa-tools me-1 text-dark"></i>Herramientas</div>
+        <div class="d-flex gap-1 flex-wrap mb-2">
+          <a href="data/resoluciones/resoluciones de topes.xlsx" target="_blank" class="btn btn-sm btn-outline-info flex-fill">
+            <i class="fa fa-file-excel me-1"></i>Resoluciones de Topes
+          </a>
+          <button class="btn btn-sm btn-primary flex-fill" onclick="_ccDescargarTodoMun()" id="ccBtnDescargarTodo">
+            <i class="fa fa-download me-1"></i>Descargar ZIP (Cuentas Claras)
+          </button>
+        </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-end mt-3">
+      <button class="btn btn-primary" onclick="irPaso(2)">Siguiente: Dictamen <i class="fa fa-arrow-right ms-1"></i></button>
+    </div>
+
+    <!-- Elementos ocultos para compatibilidad JS -->
+    <span id="contResultados" style="display:none">0</span>
+    <table style="display:none"><tbody id="tbodyResultados"></tbody></table>
+    <button id="btnConsolid" style="display:none" onclick="toggleConsolidacion()"></button>
+    <div id="panelConsolidacion" style="display:none"></div>
+  </div>
+
+  <!-- PASO 2: DICTAMEN -->
+  <div class="seccion" id="sec2">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-file-contract me-2 text-info"></i>Paso 2 · Dictamen</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(1)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="filtroBarP2" class="mb-2"></div>
+    <div id="panelDictBrowse" class="mb-3"></div>
+    <div id="sec2CandBanner" class="mb-3"></div>
+    <div id="panelDictamen"></div>
+  </div>
+
+  <!-- PASO 3: 9B Y ANEXOS (was 4) -->
+  <div class="seccion" id="sec3">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-clipboard-list me-2 text-warning"></i>Paso 3 · 9B y Anexos</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(2)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="filtroBarP3" class="mb-2"></div>
+    <div id="panel9BAnexos"></div>
+  </div>
+
+  <!-- PASO 4: FINANCIERO + ESTADO Y ALERTAS (was 3) -->
+  <div class="seccion" id="sec4">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-dollar-sign me-2 text-success"></i>Paso 4 · Financiero · Estado y Alertas</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(3)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="filtroBarP4" class="mb-2"></div>
+    <div id="panelCandidato" style="display:none"></div>
+    <div id="panelGlobalP3" class="mb-3"></div>
+    <div id="panelFinanciero"></div>
+    <hr class="my-4">
+    <div class="d-flex align-items-center mb-3">
+      <h5 class="fw-bold mb-0 me-2"><i class="fa fa-exclamation-triangle me-2 text-warning"></i>Estado y Alertas</h5>
+      <span class="badge bg-light text-muted border small">Renuncias · Informe · Artículos · Votos</span>
+    </div>
+    <div id="panelEstado"></div>
+  </div>
+
+  <!-- PASO 5: CANDIDATOS (lista con 8B + Transacciones por candidato) -->
+  <div class="seccion" id="sec5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-users me-2 text-primary"></i>Paso 5 · Candidatos</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(4)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="filtroBarP5" class="mb-2"></div>
+    <div id="panelCandidatos5"></div>
+  </div>
+
+  <!-- PASO 6: sub-vista candidato (8B + TX) — NO en sidebar, se abre desde Paso 5 -->
+  <div class="seccion" id="sec6">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0" id="sec6Title"><i class="fa fa-user me-2 text-info"></i>Paso 5 · Candidato</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(5)"><i class="fa fa-arrow-left me-1"></i>Volver a lista</button>
+    </div>
+    <div id="sec6CandBanner" class="mb-3"></div>
+    <div id="panel8B"></div>
+    <hr class="my-3">
+    <div id="panelTransacciones"></div>
+    <hr class="my-3">
+    <div id="panelAccionesCand" class="d-flex gap-2 flex-wrap justify-content-between"></div>
+  </div>
+
+  <!-- PASO 7: OBSERVACIONES -->
+  <div class="seccion" id="sec7">
+    <div class="d-flex justify-content-between align-items-center mb-1">
+      <h5 class="fw-bold mb-0"><i class="fa fa-clipboard-check me-2 text-danger"></i>Paso 7 · OBSERVACIONES</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(5)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="sec7CandBanner" class="mb-3"></div>
+    <div id="panelObservaciones"></div>
+    <div class="d-flex justify-content-between mt-3">
+      <button class="btn btn-success" onclick="irPaso(1)">
+        <i class="fa fa-search me-1"></i>Nuevo candidato
+      </button>
+      <button class="btn btn-primary" onclick="irPaso(8)">
+        <i class="fa fa-arrow-right me-1"></i>Siguiente: Respuesta al Oficio
+      </button>
+    </div>
+  </div>
+
+  <!-- PASO 8: RESPUESTA AL OFICIO -->
+  <div class="seccion" id="sec8">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-reply me-2 text-warning"></i>Paso 8 · Respuesta al Oficio</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(7)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="panelRespOficio"><div class="alert alert-secondary">Seleccione un candidato primero.</div></div>
+    <div class="text-end mt-3">
+      <button class="btn btn-primary" onclick="irPaso(9)">
+        <i class="fa fa-arrow-right me-1"></i>Siguiente: Investigaciones
+      </button>
+    </div>
+  </div>
+
+  <!-- PASO 9: INVESTIGACIONES -->
+  <div class="seccion" id="sec9">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-gavel me-2 text-danger"></i>Paso 9 · Investigaciones</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(8)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="panelInvestigaciones"><div class="alert alert-secondary">Seleccione un candidato primero.</div></div>
+    <div class="text-end mt-3">
+      <button class="btn btn-primary" onclick="irPaso(10)">
+        <i class="fa fa-arrow-right me-1"></i>Siguiente: Certificado
+      </button>
+    </div>
+  </div>
+
+  <!-- PASO 10: CERTIFICADO -->
+  <div class="seccion" id="sec10">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-certificate me-2 text-success"></i>Paso 10 · Certificado</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(9)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="panelCertificado"><div class="alert alert-secondary">Seleccione un candidato primero.</div></div>
+    <div class="text-end mt-3">
+      <button class="btn btn-primary" onclick="irPaso(11)">
+        <i class="fa fa-arrow-right me-1"></i>Siguiente: Liquidación
+      </button>
+    </div>
+  </div>
+
+  <!-- PASO 11: LIQUIDACIÓN -->
+  <div class="seccion" id="sec11">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="fw-bold mb-0"><i class="fa fa-file-invoice-dollar me-2 text-primary"></i>Paso 11 · Liquidación</h5>
+      <button class="btn btn-sm btn-outline-primary" onclick="irPaso(10)"><i class="fa fa-arrow-left me-1"></i>Volver</button>
+    </div>
+    <div id="panelLiquidacion"><div class="alert alert-secondary">Seleccione un candidato primero.</div></div>
+    <div class="d-flex justify-content-between mt-3">
+      <button class="btn btn-success" onclick="irPaso(1)">
+        <i class="fa fa-search me-1"></i>Nuevo candidato
+      </button>
+      <button class="btn btn-outline-secondary" onclick="irPaso(12)">
+        <i class="fa fa-table me-1"></i>Ver todos
+      </button>
+    </div>
+  </div>
+
+  <!-- PASO 13: CUENTAS CLARAS -->
+  <div class="seccion" id="sec13">
+    <h5 class="fw-bold mb-3"><i class="fa fa-cloud-download-alt me-2 text-info"></i>Cuentas Claras — Consulta en Línea</h5>
+    <div id="ccStatusBar" class="mb-2"></div>
+    <div id="ccFiltroBar" class="mb-2"></div>
+
+    <!-- Búsqueda rápida dentro del municipio -->
+    <div class="mb-3">
+      <input type="text" id="ccBuscar" class="form-control form-control-sm" placeholder="Filtrar candidato por nombre u organización..." oninput="_ccFiltrarCandidatos()">
+    </div>
+
+    <!-- Paneles de gestión a nivel municipio (Dictamen, Acuerdos, Contador, Gerente, Auditor) -->
+    <div id="ccGestionPanel" style="display:none" class="mb-3"></div>
+
+    <!-- Botón descarga ZIP municipal (duplicado removido, ahora está en herramientas arriba) -->
+    <div id="ccZipMunPanel" style="display:none"></div>
+
+    <!-- Tabla de candidatos -->
+    <div id="ccResultados">
+      <div class="alert alert-secondary">Seleccione Corporación / Departamento / Municipio en el <strong>Paso 1</strong> y luego vuelva aquí.</div>
+    </div>
+
+    <!-- Panel de documentos del candidato seleccionado (9B + 8B + Historiales) -->
+    <div id="ccDocPanel" style="display:none" class="mt-3">
+      <div class="card border-info">
+        <div class="card-header bg-info text-white fw-bold" id="ccDocTitle">Documentos</div>
+        <div class="card-body" id="ccDocBody">
+          <div class="text-center"><i class="fa fa-spinner fa-spin"></i> Cargando documentos...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PASO 12: TODOS -->
+  <div class="seccion" id="sec12">
+    <h5 class="fw-bold mb-3"><i class="fa fa-table me-2"></i>Todos los candidatos</h5>
+    <div class="card">
+      <div class="card-body p-0">
+        <table id="tblTodos" class="table table-sm table-hover mb-0" style="width:100%">
+          <thead class="table-dark">
+            <tr>
+              <th>Candidato</th><th>Cédula</th><th>Cargo</th>
+              <th>Municipio</th><th>Dpto</th><th>Partido</th>
+              <th>Elegido</th><th>Ingresos</th><th>Gastos</th>
+              <th>Tope</th><th>Votos</th><th>Alertas</th><th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyTodos"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /col-lg-10 -->
+</div><!-- /row -->
+</div><!-- /container-fluid -->
+
+<!-- ══ LIBRERÍAS CDN ══ -->
+<script src="vendor/js/bootstrap.bundle.min.js"></script>
+<script src="vendor/js/jquery-3.7.1.min.js"></script>
+<script src="vendor/js/jquery.dataTables.min.js"></script>
+<script src="vendor/js/dataTables.bootstrap5.min.js"></script>
+<script src="vendor/js/dataTables.buttons.min.js"></script>
+<script src="vendor/js/buttons.bootstrap5.min.js"></script>
+<script src="vendor/js/jszip.min.js"></script>
+<script src="vendor/js/xlsx.full.min.js"></script>
+<script src="vendor/js/buttons.html5.min.js"></script>
+
+<!-- ══ MÓDULOS PROPIOS — orden de carga importante ══ -->
+<!-- 1. Estado global (variables compartidas) -->
+<script src="js/estado.js"></script>
+<!-- 2. Utilitarios y helpers -->
+<script src="js/utils.js"></script>
+<!-- 3. Gestión de votos -->
+<script src="js/votos.js"></script>
+<!-- 4. Autenticación CNE -->
+<script src="js/auth.js"></script>
+<!-- 5. Navegación entre pasos -->
+<script src="js/navegacion.js"></script>
+<!-- 6. Paso 1 — Búsqueda y filtros -->
+<script src="js/paso1-busqueda.js"></script>
+<!-- 7. Paso 4 — Estado, alertas y financiero -->
+<script src="js/paso4-estado.js"></script>
+<!-- 8. Paso 2 — Dictamen -->
+<script src="js/paso2-dictamen.js"></script>
+<!-- 9. Paso 3 — 9B y Anexos -->
+<script src="js/paso3-9b.js"></script>
+<!-- 10. Paso 5 — Candidatos (formato 8B) -->
+<script src="js/paso5-candidatos.js"></script>
+<!-- 11. Paso 6 — Transacciones por candidato -->
+<script src="js/paso6-tx.js"></script>
+<!-- 12. Paso 7 — Observaciones -->
+<script src="js/paso7-obs.js"></script>
+<!-- 13. Paso 8 — Respuesta al oficio -->
+<script src="js/paso8-oficio.js"></script>
+<!-- 14. Paso 9 — Investigaciones -->
+<script src="js/paso9-invest.js"></script>
+<!-- 15. Paso 10 — Certificado -->
+<script src="js/paso10-cert.js"></script>
+<!-- 16. Paso 11 — Liquidación -->
+<script src="js/paso11-liq.js"></script>
+<!-- 17. Cuentas Claras (incluye descarga, gestión, CC online) -->
+<script src="js/cuentas_claras.js"></script>
+<!-- 18. Inicialización — debe ir al final (arranca DOMContentLoaded) -->
+<script src="js/init.js"></script>
+
+</body>
+</html>

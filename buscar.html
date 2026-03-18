@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Búsqueda Global — Cuentas Claras CNE</title>
+<link rel="stylesheet" href="vendor/css/bootstrap.min.css">
+<link rel="stylesheet" href="vendor/css/all.min.css">
+<style>
+body{background:#f4f6fb;font-family:'Segoe UI',sans-serif;font-size:.92rem}
+.navbar{background:linear-gradient(90deg,#003478,#1565c0);padding:.5rem 1.5rem}
+.navbar-brand{color:#fff!important;font-weight:700;font-size:1.1rem}
+.search-box{background:#fff;border-radius:16px;padding:2rem;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:700px;margin:2rem auto}
+.result-card{background:#fff;border-radius:10px;padding:1rem 1.2rem;margin-bottom:.6rem;box-shadow:0 1px 4px rgba(0,0,0,.07);border-left:4px solid #003478;transition:box-shadow .2s}
+.result-card:hover{box-shadow:0 4px 12px rgba(0,0,0,.13)}
+.badge-corp{font-size:.68rem;padding:.2rem .5rem;border-radius:20px}
+.tag-tipo{font-size:.7rem;background:#e8f0fe;color:#003478;border-radius:12px;padding:.1rem .5rem;font-weight:600}
+.highlight{background:#fff3cd;border-radius:3px;padding:0 2px}
+#resultados-wrap{max-width:900px;margin:0 auto}
+.stats-bar{background:#e8f0fe;border-radius:10px;padding:.6rem 1rem;font-size:.82rem;color:#003478;max-width:700px;margin:.5rem auto 1.5rem}
+</style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark px-3 py-2">
+  <a class="navbar-brand" href="analisis_cc.html"><i class="fa fa-chart-bar me-2"></i>Cuentas Claras CNE</a>
+  <div class="ms-auto d-flex gap-2">
+    <a href="partido.html" class="btn btn-outline-light btn-sm"><i class="fa fa-flag me-1"></i>Partidos</a>
+    <a href="adriana.html" class="btn btn-outline-warning btn-sm"><i class="fa fa-arrow-left me-1"></i>Portal</a>
+  </div>
+</nav>
+
+<div class="search-box">
+  <h5 class="fw-bold text-primary mb-1"><i class="fa fa-search me-2"></i>Búsqueda Global</h5>
+  <p class="text-muted small mb-3">Busque por nombre de candidato, cédula, partido, gerente de campaña o contador</p>
+  <div class="input-group input-group-lg">
+    <input type="text" id="q-input" class="form-control" placeholder="Ej: Juan García, 12345678, Partido Liberal, Danilo Rico..."
+      autofocus onkeydown="if(event.key==='Enter') buscar()">
+    <button class="btn btn-primary px-4" onclick="buscar()"><i class="fa fa-search"></i></button>
+  </div>
+  <div class="mt-2 d-flex gap-2 flex-wrap">
+    <small class="text-muted">Buscar en:</small>
+    <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="chk-cand" checked><label class="form-check-label small" for="chk-cand">Candidatos</label></div>
+    <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="chk-ger" checked><label class="form-check-label small" for="chk-ger">Gerentes</label></div>
+    <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="chk-cont" checked><label class="form-check-label small" for="chk-cont">Contadores</label></div>
+    <div class="form-check form-check-inline mb-0"><input class="form-check-input" type="checkbox" id="chk-part" checked><label class="form-check-label small" for="chk-part">Partidos</label></div>
+  </div>
+</div>
+
+<div id="stats-bar" class="stats-bar" style="display:none"></div>
+<div id="resultados-wrap"></div>
+
+<script>
+const CORP_COLOR = {
+  'Concejo':'primary','Alcaldía':'success','Asamblea':'warning',
+  'Gobernación':'danger','JAL':'info','Otro':'secondary'
+};
+const fmt = n => n>0 ? '$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0}) : '';
+
+let _ultimaQ = '';
+
+function buscar() {
+  const q = document.getElementById('q-input').value.trim();
+  if (!q || q === _ultimaQ) return;
+  _ultimaQ = q;
+
+  const wrap = document.getElementById('resultados-wrap');
+  const bar  = document.getElementById('stats-bar');
+  wrap.innerHTML = '<div class="text-center text-muted py-4"><i class="fa fa-spinner fa-spin fa-2x"></i><br><small>Buscando...</small></div>';
+  bar.style.display = 'none';
+
+  fetch('/api/cc_buscar?q=' + encodeURIComponent(q) + '&limit=200')
+    .then(r => r.json())
+    .then(data => {
+      const res = data.resultados || [];
+      if (!res.length) {
+        wrap.innerHTML = '<div class="text-center text-muted py-5"><i class="fa fa-search fa-2x mb-2"></i><br>No se encontraron resultados para <strong>"'+q+'"</strong></div>';
+        bar.style.display = 'none';
+        return;
+      }
+
+      // Filtrar según checkboxes
+      const chkCand = document.getElementById('chk-cand').checked;
+      const chkGer  = document.getElementById('chk-ger').checked;
+      const chkCont = document.getElementById('chk-cont').checked;
+      const chkPart = document.getElementById('chk-part').checked;
+      const qU = q.toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+      const norm = s => (s||'').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+
+      const filtrados = res.filter(r => {
+        const enCand = norm(r.nombre).includes(qU) || norm(r.cedula).includes(qU);
+        const enGer  = norm(r.gerente_nombre).includes(qU);
+        const enCont = norm(r.contador_nombre).includes(qU);
+        const enPart = norm(r.partido).includes(qU);
+        return (chkCand && enCand) || (chkGer && enGer) || (chkCont && enCont) || (chkPart && enPart);
+      });
+
+      if (!filtrados.length) {
+        wrap.innerHTML = '<div class="text-center text-muted py-4">No hay resultados con los filtros seleccionados.</div>';
+        return;
+      }
+
+      bar.style.display = '';
+      bar.innerHTML = `<i class="fa fa-info-circle me-1"></i>
+        <strong>${filtrados.length}</strong> resultado${filtrados.length!==1?'s':''} para <strong>"${q}"</strong>
+        ${data.total >= 200 ? ' <span class="text-warning">(mostrando primeros 200)</span>' : ''}`;
+
+      const hl = txt => {
+        if (!txt) return '';
+        const rx = new RegExp('(' + q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&') + ')', 'gi');
+        return txt.replace(rx, '<span class="highlight">$1</span>');
+      };
+
+      wrap.innerHTML = filtrados.map(r => {
+        const corpCls = CORP_COLOR[r.corp] || 'secondary';
+        const ingGas = (r.ingreso||r.gasto||r.votos) ?
+          `${r.votos>0?`<span class="text-primary small me-2"><i class="fa fa-vote-yea me-1"></i>${Number(r.votos).toLocaleString('es-CO')}</span>`:''}
+           <span class="text-success small me-2">${fmt(r.ingreso)}</span><span class="text-danger small">${fmt(r.gasto)}</span>` : '';
+        let equipo = '';
+        if (r.gerente_nombre) equipo += `<span class="me-3 small"><i class="fa fa-user-tie text-warning me-1"></i><strong>Gerente:</strong> ${hl(r.gerente_nombre)}${r.gerente_cc?' <span class="text-muted">C.C. '+r.gerente_cc+'</span>':''}</span>`;
+        if (r.contador_nombre) equipo += `<span class="small"><i class="fa fa-calculator text-info me-1"></i><strong>Contador:</strong> ${hl(r.contador_nombre)}${r.contador_cc?' <span class="text-muted">C.C. '+r.contador_cc+'</span>':''}</span>`;
+        return `<div class="result-card" onclick="location.href='detalle_dpto.html?dpto=${encodeURIComponent(r.dpto)}'" style="cursor:pointer">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <strong class="fs-6">${hl(r.nombre)}</strong>
+              ${r.cedula ? `<span class="text-muted small ms-2">C.C. ${hl(r.cedula)}</span>` : ''}
+              <br>
+              <span class="small text-muted">${hl(r.partido||'')}</span>
+              <span class="ms-2 small text-muted"><i class="fa fa-map-marker-alt me-1"></i>${r.mun}, ${r.dpto}</span>
+            </div>
+            <div class="text-end">
+              <span class="badge bg-${corpCls} badge-corp">${r.corp}</span>
+              ${ingGas ? `<br><small class="mt-1 d-block">${ingGas}</small>` : ''}
+            </div>
+          </div>
+          ${equipo ? `<div class="mt-1 pt-1 border-top">${equipo}</div>` : ''}
+        </div>`;
+      }).join('');
+    })
+    .catch(e => {
+      wrap.innerHTML = `<div class="alert alert-danger mx-auto" style="max-width:700px">Error: ${e}</div>`;
+    });
+}
+
+// Búsqueda desde URL (?q=...)
+const urlQ = new URLSearchParams(location.search).get('q');
+if (urlQ) {
+  document.getElementById('q-input').value = urlQ;
+  buscar();
+}
+</script>
+</body>
+</html>

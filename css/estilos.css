@@ -1,0 +1,20 @@
+:root{--cne-azul:#003478;--cne-rojo:#c8102e;--cne-dorado:#f4b223;}
+body{font-size:.9rem;background:#f4f6f9;}
+.navbar{background:var(--cne-azul)!important;}
+.sidebar{background:#fff;border-right:2px solid var(--cne-azul);min-height:100vh;padding:1rem .5rem;}
+.paso{border-left:4px solid #dee2e6;padding:.75rem 1rem;margin-bottom:.75rem;border-radius:0 .4rem .4rem 0;cursor:pointer;transition:.2s;}
+.paso:hover{background:#f0f4ff;}
+.paso.activo{border-color:var(--cne-azul);background:#e8efff;}
+.paso.completado{border-color:#198754;}
+.paso-num{width:28px;height:28px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;background:#dee2e6;color:#333;}
+.paso.activo .paso-num{background:var(--cne-azul);color:#fff;}
+.paso.completado .paso-num{background:#198754;color:#fff;}
+.seccion{display:none;}
+.seccion.activa{display:block;}
+.estado-chip{display:inline-block;padding:.15rem .5rem;border-radius:2rem;font-size:.7rem;font-weight:600;}
+.chip-renuncia{background:#fff3cd;color:#856404;}
+.chip-no-presento{background:#f8d7da;color:#842029;}
+.chip-extempor{background:#fff3cd;color:#664d03;}
+.chip-revocado{background:#f8d7da;color:#842029;}
+.tabla-obs td{font-size:.8rem;}
+.url-preview-btn{font-size:.75rem;}

@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Detalle Departamento — Cuentas Claras CNE</title>
+<link rel="stylesheet" href="vendor/css/bootstrap.min.css">
+<link rel="stylesheet" href="vendor/css/all.min.css">
+<link rel="stylesheet" href="vendor/css/dataTables.bootstrap5.min.css">
+<style>
+body{background:#f4f6fb;font-family:'Segoe UI',sans-serif;font-size:.92rem}
+.navbar{background:linear-gradient(90deg,#003478,#1565c0);padding:.5rem 1.5rem}
+.navbar-brand{color:#fff!important;font-weight:700;font-size:1.1rem}
+.kpi-card{border-radius:12px;padding:1rem 1.2rem;color:#fff;display:flex;align-items:center;gap:.8rem}
+.kpi-card .icon{font-size:1.6rem;opacity:.8}
+.kpi-card .val{font-size:1.4rem;font-weight:700;line-height:1}
+.kpi-card .lbl{font-size:.72rem;opacity:.85;text-transform:uppercase;letter-spacing:.05em}
+.kpi-blue{background:linear-gradient(135deg,#003478,#1565c0)}
+.kpi-green{background:linear-gradient(135deg,#1b5e20,#2e7d32)}
+.kpi-red{background:linear-gradient(135deg,#b71c1c,#c62828)}
+.kpi-purple{background:linear-gradient(135deg,#4a148c,#6a1b9a)}
+.kpi-orange{background:linear-gradient(135deg,#e65100,#f57c00)}
+.section-card{background:#fff;border-radius:12px;padding:1.2rem 1.4rem;margin-bottom:1.2rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.section-title{font-weight:700;font-size:.95rem;color:#003478;border-bottom:2px solid #ffd600;padding-bottom:.4rem;margin-bottom:.9rem}
+.badge-corp{font-size:.68rem;padding:.2rem .5rem;border-radius:20px}
+.bar-bg{background:#e8f0fe;border-radius:4px;height:8px;margin-top:4px}
+.bar-fill{background:linear-gradient(90deg,#003478,#1565c0);border-radius:4px;height:8px;transition:width .4s}
+.bar-fill-green{background:linear-gradient(90deg,#1b5e20,#43a047);border-radius:4px;height:8px}
+.medal-1{color:#ffd600} .medal-2{color:#9e9e9e} .medal-3{color:#bf8a30}
+#loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.9);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem}
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner-border text-primary" style="width:3rem;height:3rem"></div>
+  <div class="text-muted">Cargando datos del departamento...</div>
+</div>
+
+<nav class="navbar navbar-expand-lg mb-0">
+  <a class="navbar-brand" href="analisis_cc.html">
+    <i class="fa fa-arrow-left me-2"></i>Cuentas Claras CNE
+  </a>
+  <span class="text-white ms-3 opacity-75" id="nav-dpto"></span>
+  <div class="ms-auto d-flex gap-2">
+    <a href="buscar.html" class="btn btn-outline-light btn-sm"><i class="fa fa-search me-1"></i>Buscar</a>
+    <a href="partido.html" class="btn btn-outline-light btn-sm"><i class="fa fa-flag me-1"></i>Partidos</a>
+  </div>
+</nav>
+
+<div class="container-fluid px-3 py-3">
+
+  <!-- Título -->
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h4 class="mb-0 fw-bold text-primary" id="titulo-dpto">—</h4>
+      <small class="text-muted" id="subtitulo-dpto"></small>
+    </div>
+    <a href="analisis_cc.html" class="btn btn-sm btn-outline-primary">
+      <i class="fa fa-map me-1"></i>Volver al mapa
+    </a>
+  </div>
+
+  <!-- KPIs -->
+  <div class="row g-2 mb-3" id="kpi-row"></div>
+
+  <!-- Fila 1: Partidos con más gastos + Municipios -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-7">
+      <div class="section-card">
+        <div class="section-title"><i class="fa fa-medal me-2 text-warning"></i>Partidos / Movimientos con más gastos</div>
+        <div id="tabla-partidos"></div>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="section-card">
+        <div class="section-title"><i class="fa fa-map-marker-alt me-2 text-danger"></i>Gastos por Municipio</div>
+        <div id="tabla-municipios" style="max-height:320px;overflow-y:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fila 2: Top gastos + Menos gastos -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-6">
+      <div class="section-card">
+        <div class="section-title"><i class="fa fa-arrow-up me-2 text-danger"></i>Top 10 — Mayor gasto declarado</div>
+        <div id="tabla-top-gastos"></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="section-card">
+        <div class="section-title"><i class="fa fa-arrow-down me-2 text-success"></i>Top 10 — Menor gasto declarado</div>
+        <div id="tabla-menos-gastos"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Equipo de Campaña -->
+  <div class="section-card mb-3">
+    <div class="section-title"><i class="fa fa-id-badge me-2 text-warning"></i>Equipo de Campaña — Candidato, Gerente y Contador</div>
+    <div id="eq-loading" class="text-muted small"><i class="fa fa-spinner fa-spin me-1"></i>Cargando equipo de campaña...</div>
+    <div id="eq-resultado"></div>
+  </div>
+
+  <!-- Candidatos -->
+  <div class="section-card">
+    <div class="section-title"><i class="fa fa-users me-2 text-primary"></i>Candidatos del departamento</div>
+    <div class="row g-2 mb-2">
+      <div class="col-auto">
+        <input type="text" id="q-cand" class="form-control form-control-sm" placeholder="Buscar candidato..." style="width:200px" oninput="filtrarCandidatos()">
+      </div>
+      <div class="col-auto">
+        <select id="fil-mun-cand" class="form-select form-select-sm" style="width:180px" onchange="filtrarCandidatos()">
+          <option value="">Todos los municipios</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <select id="fil-corp-cand" class="form-select form-select-sm" style="width:160px" onchange="filtrarCandidatos()">
+          <option value="">Todas las corporaciones</option>
+          <option>Concejo</option><option>Alcaldía</option><option>Asamblea</option>
+          <option>Gobernación</option><option>JAL</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <select id="fil-rad-cand" class="form-select form-select-sm" onchange="filtrarCandidatos()">
+          <option value="">Todos</option>
+          <option value="1">Solo radicaron</option>
+          <option value="0">Sin radicación</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <select id="fil-orden-cand" class="form-select form-select-sm" onchange="filtrarCandidatos()">
+          <option value="">Ordenar por nombre</option>
+          <option value="votos_desc">Mayor votos primero</option>
+          <option value="gasto_desc">Mayor gasto primero</option>
+          <option value="gasto_asc">Menor gasto primero</option>
+          <option value="ingreso_desc">Mayor ingreso primero</option>
+          <option value="liq_desc">Mayor liquidación</option>
+          <option value="neto_desc">Mayor neto a pagar</option>
+        </select>
+      </div>
+      <div class="col-auto ms-auto">
+        <button class="btn btn-sm btn-outline-success" onclick="exportarCSV()">
+          <i class="fa fa-file-csv me-1"></i>Exportar CSV
+        </button>
+      </div>
+    </div>
+    <div id="tabla-candidatos-wrap">
+      <table class="table table-sm table-hover table-bordered" id="tabla-candidatos">
+        <thead class="table-dark">
+          <tr>
+            <th>#</th><th>Nombre</th><th>Partido / Movimiento</th>
+            <th>Municipio</th><th>Corporación</th><th>Radicó</th>
+            <th class="text-end">Votos</th>
+            <th class="text-end">Gastos</th>
+            <th class="text-end">Valor Votos</th><th class="text-end">Liquidación</th>
+            <th class="text-end">Auditoría 1%</th><th class="text-end">Neto a Pagar</th>
+            <th>Gerente Campaña</th><th>Contador</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-candidatos"></tbody>
+      </table>
+      <div id="paginacion-cands" class="d-flex justify-content-between align-items-center mt-1">
+        <small id="info-cands" class="text-muted"></small>
+        <div id="btns-paginas" class="d-flex gap-1"></div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script src="vendor/js/jquery-3.7.1.min.js"></script>
+<script src="vendor/js/bootstrap.bundle.min.js"></script>
+<script>
+const params = new URLSearchParams(location.search);
+const DPTO   = (params.get('dpto') || '').toUpperCase().trim();
+
+if (!DPTO) {
+  document.getElementById('loading').innerHTML = '<div class="alert alert-danger">Parámetro dpto no especificado. <a href="analisis_cc.html">Volver</a></div>';
+}
+
+const fmt  = n => isNaN(n)||n==null ? '—' : '$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0});
+const fmtN = n => isNaN(n)||n==null ? '—' : Number(n).toLocaleString('es-CO');
+const CORP_COLOR = {
+  'Concejo':'primary','Alcaldía':'success','Asamblea':'warning',
+  'Gobernación':'danger','JAL':'info','Otro':'secondary'
+};
+const TARIFA_VOTO = {
+  'Alcaldía':2766,'Concejo':2766,'JAL':2766,
+  'Asamblea':4590,'Gobernación':4590
+};
+function calcLiquidacion(c) {
+  const tarifa     = TARIFA_VOTO[c.corp] || 2766;
+  const valorVotos = (c.votos || 0) * tarifa;
+  const gastos     = c.gasto || 0;
+  const liquidacion = Math.min(gastos, valorVotos);
+  return { tarifa, valorVotos, liquidacion, auditoria: liquidacion*0.01, neto: liquidacion*0.99 };
+}
+
+let _data = null;
+let _candidatos = [];
+let _filtrados  = [];
+let _gerentes   = {};  // cand_id -> {gerente_nombre, gerente_cc, contador_nombre, contador_cc}
+let _pagina     = 1;
+const PER_PAGE  = 50;
+
+// ── Cargar datos del departamento + gerentes en paralelo ─────────────────────
+Promise.all([
+  fetch(`/api/cc_dpto_detalle?dpto=${encodeURIComponent(DPTO)}`).then(r => r.json()),
+  fetch(`/api/cc_gerentes_pdf?dpto=${encodeURIComponent(DPTO)}`).then(r => r.json()).catch(() => ({registros:[]}))
+]).then(([data, ger]) => {
+  _data = data;
+  if (data.error) {
+    document.getElementById('loading').innerHTML =
+      `<div class="alert alert-danger">${data.error}. <a href="analisis_cc.html">Volver</a></div>`;
+    return;
+  }
+  // Indexar gerentes por cand_id
+  (ger.registros || []).forEach(r => { _gerentes[r.cand_id] = r; });
+  renderPage(data);
+  document.getElementById('loading').style.display = 'none';
+  cargarCandidatos();
+  renderEquipoPDF(ger.registros || [], ger.descargado);
+}).catch(e => {
+  document.getElementById('loading').innerHTML =
+    `<div class="alert alert-danger">Error cargando datos: ${e}. <a href="analisis_cc.html">Volver</a></div>`;
+});
+
+function renderPage(d) {
+  document.title = d.dpto + ' — Cuentas Claras';
+  document.getElementById('titulo-dpto').textContent = d.dpto;
+  document.getElementById('nav-dpto').textContent = d.dpto;
+  const pct = d.candidatos > 0 ? (d.radicaron*100/d.candidatos).toFixed(1) : 0;
+  document.getElementById('subtitulo-dpto').textContent =
+    `${fmtN(d.candidatos)} candidatos · ${fmtN(d.radicaron)} radicaron (${pct}%)`;
+
+  // KPIs
+  const kpis = [
+    {icon:'fa-users',     val:fmtN(d.candidatos),  lbl:'Candidatos',      cls:'kpi-blue'},
+    {icon:'fa-check',     val:fmtN(d.radicaron),   lbl:'Radicaron',       cls:'kpi-green'},
+    {icon:'fa-percent',   val:pct+'%',              lbl:'% Radicó',        cls:'kpi-purple'},
+    {icon:'fa-plus-circle',val:fmt(d.total_ingreso),lbl:'Total Ingresos',  cls:'kpi-orange'},
+    {icon:'fa-minus-circle',val:fmt(d.total_gasto), lbl:'Total Gastos',    cls:'kpi-red'},
+  ];
+  document.getElementById('kpi-row').innerHTML = kpis.map(k =>
+    `<div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card ${k.cls}">
+        <i class="fa ${k.icon} icon"></i>
+        <div><div class="val">${k.val}</div><div class="lbl">${k.lbl}</div></div>
+      </div>
+    </div>`).join('');
+
+  // Partidos
+  renderTablaPartidos(d.por_partido);
+  // Municipios
+  renderTablaMunicipios(d.por_municipio);
+  // Top/menos gastos
+  renderTopOrg(d.top_gastos,   'tabla-top-gastos',   true);
+  renderTopOrg(d.menos_gastos, 'tabla-menos-gastos', false);
+}
+
+function renderTablaPartidos(list) {
+  if (!list || !list.length) {
+    document.getElementById('tabla-partidos').innerHTML = '<p class="text-muted small">Sin datos financieros.</p>';
+    return;
+  }
+  const maxG = Math.max(...list.map(x => x.gasto));
+  const rows = list.slice(0,20).map((p,i) => {
+    const pct = maxG > 0 ? (p.gasto/maxG*100).toFixed(1) : 0;
+    const medal = i===0?'<i class="fa fa-medal medal-1 me-1"></i>':i===1?'<i class="fa fa-medal medal-2 me-1"></i>':i===2?'<i class="fa fa-medal medal-3 me-1"></i>':'';
+    return `<tr>
+      <td style="width:30px" class="text-muted small">${i+1}</td>
+      <td>${medal}<strong>${p.partido}</strong>
+        <div class="bar-bg"><div class="bar-fill" style="width:${pct}%"></div></div>
+      </td>
+      <td class="text-end text-success fw-semibold">${fmt(p.ingreso)}</td>
+      <td class="text-end text-danger fw-semibold">${fmt(p.gasto)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tabla-partidos').innerHTML =
+    `<table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr><th>#</th><th>Partido/Movimiento</th><th class="text-end">Ingresos</th><th class="text-end">Gastos</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderTablaMunicipios(list) {
+  if (!list || !list.length) {
+    document.getElementById('tabla-municipios').innerHTML = '<p class="text-muted small">Sin datos.</p>';
+    return;
+  }
+  const maxG = Math.max(...list.map(x => x.gasto));
+  const rows = list.map((m,i) => {
+    const pct = maxG > 0 ? (m.gasto/maxG*100).toFixed(1) : 0;
+    return `<tr>
+      <td class="text-muted small" style="width:24px">${i+1}</td>
+      <td><strong>${m.mun}</strong>
+        <div class="bar-bg"><div class="bar-fill-green" style="width:${pct}%"></div></div>
+      </td>
+      <td class="text-end text-danger fw-semibold small">${fmt(m.gasto)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tabla-municipios').innerHTML =
+    `<table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr><th>#</th><th>Municipio</th><th class="text-end">Gastos</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+function renderTopOrg(list, containerId, desc) {
+  if (!list || !list.length) {
+    document.getElementById(containerId).innerHTML = '<p class="text-muted small">Sin datos financieros disponibles.</p>';
+    return;
+  }
+  const rows = list.map((o,i) => {
+    const corpCls = CORP_COLOR[o.corp] || 'secondary';
+    return `<tr>
+      <td class="text-muted small">${i+1}</td>
+      <td><strong>${o.org}</strong><br>
+        <small class="text-muted">${o.mun}</small>
+        <span class="badge bg-${corpCls} badge-corp ms-1">${o.corp}</span>
+      </td>
+      <td class="text-end text-success small">${fmt(o.ingreso)}</td>
+      <td class="text-end text-danger fw-bold">${fmt(o.gasto)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById(containerId).innerHTML =
+    `<table class="table table-sm table-hover mb-0">
+      <thead class="table-light"><tr><th>#</th><th>Organización</th><th class="text-end">Ingresos</th><th class="text-end">Gastos</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+// ── Equipo de Campaña (datos locales cc_gerentes_pdf.json) ───────────────────
+function renderEquipoPDF(registros, descargado) {
+  const loading = document.getElementById('eq-loading');
+  const res     = document.getElementById('eq-resultado');
+  if (loading) loading.style.display = 'none';
+
+  if (!descargado) {
+    res.innerHTML = `<div class="alert alert-info py-2 small">
+      <i class="fa fa-info-circle me-1"></i>Los datos de gerentes/contadores aún no están descargados.
+      Ejecute: <code>python descargar_gerentes_pdf_cc.py</code></div>`;
+    return;
+  }
+
+  const conGerente  = registros.filter(r => r.gerente_nombre);
+  const conContador = registros.filter(r => r.contador_nombre);
+
+  if (!registros.length) {
+    res.innerHTML = `<div class="alert alert-warning py-2 small">No hay datos de equipo para este departamento en el archivo local.</div>`;
+    return;
+  }
+
+  // Búsqueda en equipo
+  let _equFiltro = '';
+  const _renderEqTabla = (lista) => {
+    const q = _equFiltro.toUpperCase();
+    const fil = q ? lista.filter(r =>
+      (r.nombre||'').toUpperCase().includes(q) ||
+      (r.gerente_nombre||'').toUpperCase().includes(q) ||
+      (r.contador_nombre||'').toUpperCase().includes(q) ||
+      (r.mun||'').toUpperCase().includes(q)
+    ) : lista;
+    return fil.slice(0, 200).map((r, i) => `<tr>
+      <td class="text-muted">${i+1}</td>
+      <td><strong>${r.nombre||'—'}</strong><br><span class="text-muted small">${r.mun||''}</span></td>
+      <td>${r.gerente_nombre ? `<strong>${r.gerente_nombre}</strong>${r.gerente_cc?`<br><small class="text-muted">C.C. ${r.gerente_cc}</small>`:''}` : '<span class="text-muted small">—</span>'}</td>
+      <td>${r.contador_nombre ? `<strong>${r.contador_nombre}</strong>${r.contador_cc?`<br><small class="text-muted">C.C. ${r.contador_cc}</small>`:''}` : '<span class="text-muted small">—</span>'}</td>
+    </tr>`).join('') || '<tr><td colspan="4" class="text-center text-muted">Sin resultados</td></tr>';
+  };
+
+  const buildHtml = () => `
+    <div class="row g-2 mb-2 align-items-center">
+      <div class="col-auto">
+        <span class="badge bg-warning text-dark me-1"><i class="fa fa-user-tie me-1"></i>${conGerente.length} con gerente</span>
+        <span class="badge bg-info text-dark"><i class="fa fa-calculator me-1"></i>${conContador.length} con contador</span>
+        <span class="text-muted small ms-2">(${registros.length} total con PDF)</span>
+      </div>
+      <div class="col-auto ms-auto">
+        <input type="text" id="eq-buscar" class="form-control form-control-sm" placeholder="Buscar candidato, gerente..." style="width:220px" oninput="window._eqSearch(this.value)">
+      </div>
+    </div>
+    <div style="overflow-x:auto;max-height:400px;overflow-y:auto">
+    <table class="table table-sm table-hover table-bordered mb-0">
+      <thead class="table-warning sticky-top">
+        <tr><th>#</th><th>Candidato / Municipio</th><th>Gerente de Campaña</th><th>Contador</th></tr>
+      </thead>
+      <tbody id="eq-tbody">${_renderEqTabla(registros)}</tbody>
+    </table></div>`;
+
+  res.innerHTML = buildHtml();
+  window._eqSearch = (q) => {
+    _equFiltro = q;
+    document.getElementById('eq-tbody').innerHTML = _renderEqTabla(registros);
+  };
+}
+
+
+// ── Candidatos ───────────────────────────────────────────────────────────────
+function cargarCandidatos(page) {
+  fetch(`/api/cc_candidatos?dpto=${encodeURIComponent(DPTO)}&per_page=500&page=${page||1}`)
+    .then(r => r.json())
+    .then(d => {
+      _candidatos = _candidatos.concat(d.candidatos || []);
+      // Poblar filtro municipios
+      const muns = [...new Set(_candidatos.map(c => c.mun))].sort();
+      const sel = document.getElementById('fil-mun-cand');
+      sel.innerHTML = '<option value="">Todos los municipios</option>' +
+        muns.map(m => `<option>${m}</option>`).join('');
+      _filtrados = _candidatos.slice();
+      renderCandidatos();
+      // Paginar si hay más
+      if (d.candidatos && d.candidatos.length === 500) {
+        cargarCandidatos((page||1)+1);
+      }
+    });
+}
+
+function exportarCSV() {
+  const cols = ['#','Nombre','Cedula','Partido','Municipio','Corporacion','Radico',
+                 'Votos','Gastos','Valor_Votos','Liquidacion','Auditoria_1pct','Neto_a_Pagar',
+                 'Gerente','Gerente_CC','Contador','Contador_CC'];
+  const rows = _filtrados.map((c, i) => {
+    const ger = _gerentes[c.cand_id] || {};
+    const lq  = calcLiquidacion(c);
+    return [i+1, c.nombre||'', c.cedula||'', c.partido||c.org||'', c.mun||'',
+            c.corp||'', c.radico?'Si':'No', c.votos||0, c.gasto||0,
+            Math.round(lq.valorVotos), Math.round(lq.liquidacion),
+            Math.round(lq.auditoria), Math.round(lq.neto),
+            ger.gerente_nombre||'', ger.gerente_cc||'',
+            ger.contador_nombre||'', ger.contador_cc||''].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
+  });
+  const csv = '\uFEFF' + cols.join(',') + '\n' + rows.join('\n');
+  const a   = document.createElement('a');
+  a.href    = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download= `candidatos_${DPTO.replace(/\s/g,'_')}.csv`;
+  a.click();
+}
+
+function filtrarCandidatos() {
+  const q     = document.getElementById('q-cand').value.trim().toUpperCase();
+  const mun   = document.getElementById('fil-mun-cand').value.toUpperCase();
+  const corp  = document.getElementById('fil-corp-cand').value.toUpperCase();
+  const rad   = document.getElementById('fil-rad-cand').value;
+  const orden = document.getElementById('fil-orden-cand').value;
+
+  _filtrados = _candidatos.filter(c => {
+    if (q    && !c.nombre?.toUpperCase().includes(q) && !c.partido?.toUpperCase().includes(q) && !c.org?.toUpperCase().includes(q)) return false;
+    if (mun  && c.mun?.toUpperCase() !== mun) return false;
+    if (corp && c.corp?.toUpperCase() !== corp) return false;
+    if (rad === '1' && !c.radico) return false;
+    if (rad === '0' && c.radico)  return false;
+    return true;
+  });
+
+  if (orden === 'votos_desc')        _filtrados.sort((a,b) => (b.votos||0)-(a.votos||0));
+  else if (orden === 'gasto_desc')   _filtrados.sort((a,b) => (b.gasto||0)-(a.gasto||0));
+  else if (orden === 'gasto_asc')    _filtrados.sort((a,b) => (a.gasto||0)-(b.gasto||0));
+  else if (orden === 'ingreso_desc') _filtrados.sort((a,b) => (b.ingreso||0)-(a.ingreso||0));
+  else if (orden === 'liq_desc')     _filtrados.sort((a,b) => calcLiquidacion(b).liquidacion-calcLiquidacion(a).liquidacion);
+  else if (orden === 'neto_desc')    _filtrados.sort((a,b) => calcLiquidacion(b).neto-calcLiquidacion(a).neto);
+
+  _pagina = 1;
+  renderCandidatos();
+}
+
+function renderCandidatos() {
+  const start = (_pagina-1)*PER_PAGE;
+  const page  = _filtrados.slice(start, start+PER_PAGE);
+  const tbody = document.getElementById('tbody-candidatos');
+  tbody.innerHTML = page.map((c,i) => {
+    const radBadge = c.radico
+      ? `<span class="badge bg-success">Sí</span>`
+      : `<span class="badge bg-danger">No</span>`;
+    const corpCls = CORP_COLOR[c.corp] || 'secondary';
+    const gastTxt = c.gasto   > 0 ? `<span class="text-danger fw-semibold">${fmt(c.gasto)}</span>`   : `<span class="text-muted small">—</span>`;
+    const votosTxt= c.votos   > 0 ? `<span class="fw-semibold text-primary">${Number(c.votos).toLocaleString('es-CO')}</span>` : `<span class="text-muted small">—</span>`;
+    const ger     = _gerentes[c.cand_id] || {};
+    const gerTxt  = ger.gerente_nombre
+      ? `<small>${ger.gerente_nombre}${ger.gerente_cc?`<br><span class="text-muted">C.C. ${ger.gerente_cc}</span>`:''}</small>`
+      : `<span class="text-muted small">—</span>`;
+    const contTxt = ger.contador_nombre
+      ? `<small>${ger.contador_nombre}${ger.contador_cc?`<br><span class="text-muted">C.C. ${ger.contador_cc}</span>`:''}</small>`
+      : `<span class="text-muted small">—</span>`;
+    const lq = calcLiquidacion(c);
+    const valVotTxt = lq.valorVotos>0 ? `<span class="text-info">${fmt(lq.valorVotos)}</span>` : `<span class="text-muted small">—</span>`;
+    const liqTxt    = lq.liquidacion>0 ? `<span class="text-warning fw-semibold">${fmt(lq.liquidacion)}</span>` : `<span class="text-muted small">—</span>`;
+    const audTxt    = lq.auditoria>0 ? `<small class="text-danger">${fmt(lq.auditoria)}</small>` : `<span class="text-muted small">—</span>`;
+    const netoTxt   = lq.neto>0 ? `<span class="text-success fw-semibold">${fmt(lq.neto)}</span>` : `<span class="text-muted small">—</span>`;
+    return `<tr>
+      <td class="text-muted">${start+i+1}</td>
+      <td><strong>${c.nombre||'—'}</strong></td>
+      <td><small>${c.partido||c.org||'—'}</small></td>
+      <td>${c.mun||'—'}</td>
+      <td><span class="badge bg-${corpCls} badge-corp">${c.corp||'—'}</span></td>
+      <td>${radBadge}</td>
+      <td class="text-end">${votosTxt}</td>
+      <td class="text-end">${gastTxt}</td>
+      <td class="text-end">${valVotTxt}</td>
+      <td class="text-end">${liqTxt}</td>
+      <td class="text-end">${audTxt}</td>
+      <td class="text-end">${netoTxt}</td>
+      <td>${gerTxt}</td>
+      <td>${contTxt}</td>
+    </tr>`;
+  }).join('');
+
+  const total = _filtrados.length;
+  const pages = Math.ceil(total/PER_PAGE);
+  document.getElementById('info-cands').textContent =
+    `Mostrando ${Math.min(start+1,total)}–${Math.min(start+PER_PAGE,total)} de ${fmtN(total)} candidatos`;
+
+  const btns = document.getElementById('btns-paginas');
+  btns.innerHTML = '';
+  if (pages > 1) {
+    const addBtn = (label, p, active) => {
+      const b = document.createElement('button');
+      b.className = `btn btn-xs btn-${active?'primary':'outline-secondary'} py-0 px-2`;
+      b.style.fontSize = '.75rem';
+      b.textContent = label;
+      b.onclick = () => { _pagina = p; renderCandidatos(); };
+      btns.appendChild(b);
+    };
+    if (_pagina > 1) addBtn('«', 1);
+    if (_pagina > 2) addBtn(_pagina-1, _pagina-1);
+    addBtn(_pagina, _pagina, true);
+    if (_pagina < pages) addBtn(_pagina+1, _pagina+1);
+    if (_pagina < pages-1) addBtn('»', pages);
+  }
+}
+</script>
+</body>
+</html>

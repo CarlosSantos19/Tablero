@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Análisis Cuentas Claras — CNE Territoriales 2023</title>
+
+<link rel="stylesheet" href="vendor/css/bootstrap.min.css">
+<link rel="stylesheet" href="vendor/css/dataTables.bootstrap5.min.css">
+<link rel="stylesheet" href="vendor/css/buttons.bootstrap5.min.css">
+<link rel="stylesheet" href="vendor/css/all.min.css">
+<link rel="stylesheet" href="vendor/css/leaflet.css">
+
+<style>
+:root{
+  --azul:#003478;--rojo:#c8102e;--dorado:#f4b223;
+}
+body{background:#f0f4f8;font-size:.88rem;}
+.navbar{background:var(--azul)!important;}
+.navbar-brand{font-weight:700;letter-spacing:.03em;}
+
+/* KPI Cards */
+.kpi-card{border-radius:12px;padding:1.1rem 1.3rem;color:#fff;position:relative;overflow:hidden;box-shadow:0 4px 18px rgba(0,0,0,.15);}
+.kpi-card .icon{position:absolute;right:14px;top:14px;font-size:2.2rem;opacity:.25;}
+.kpi-card .val{font-size:1.6rem;font-weight:700;line-height:1.1;}
+.kpi-card .lbl{font-size:.72rem;opacity:.85;text-transform:uppercase;letter-spacing:.07em;}
+
+/* Chart containers */
+.chart-card{background:#fff;border-radius:12px;padding:1.2rem;box-shadow:0 2px 12px rgba(0,0,0,.07);}
+.chart-card h6{font-weight:700;color:var(--azul);margin-bottom:.9rem;border-bottom:2px solid var(--dorado);padding-bottom:.4rem;}
+
+/* Table */
+#tbl-candidatos_wrapper .dataTables_filter input{border-radius:20px;padding:.3rem .9rem;}
+#tbl-candidatos tbody tr:hover{background:#f0f7ff;}
+.badge-radico{background:#d1fae5;color:#065f46;padding:.2rem .5rem;border-radius:8px;font-size:.72rem;font-weight:600;}
+.badge-norad{background:#fee2e2;color:#991b1b;padding:.2rem .5rem;border-radius:8px;font-size:.72rem;font-weight:600;}
+
+/* Alert strip */
+.alerta-strip{background:#fff3cd;border-left:4px solid #ffc107;border-radius:0 8px 8px 0;padding:.6rem 1rem;margin-bottom:.5rem;font-size:.8rem;}
+
+/* Loading overlay */
+#loading{position:fixed;inset:0;background:rgba(0,34,78,.85);z-index:9999;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;}
+#loading h4{margin-top:1rem;font-weight:600;}
+.spinner-ring{width:64px;height:64px;border:6px solid rgba(255,255,255,.2);
+  border-top-color:#fff;border-radius:50%;animation:spin .9s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* No data */
+.no-data{text-align:center;padding:3rem;color:#aaa;}
+.no-data i{font-size:3rem;display:block;margin-bottom:.8rem;}
+
+/* Mapa */
+#mapa-colombia{height:500px;border-radius:8px;z-index:0;}
+.mapa-leyenda{background:#fff;padding:8px 12px;border-radius:8px;font-size:.75rem;box-shadow:0 1px 6px rgba(0,0,0,.2);}
+.mapa-leyenda i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:5px;vertical-align:middle;}
+#panel-dpto-inner .mun-item{cursor:pointer;padding:.25rem .5rem;border-radius:6px;transition:background .15s;}
+#panel-dpto-inner .mun-item:hover{background:#e8f0fe;}
+#panel-dpto-inner .mun-item.activo{background:#003478;color:#fff;}
+.stat-box{background:#f8f9fa;border-radius:8px;padding:.6rem .9rem;text-align:center;}
+.stat-box .sv{font-size:1.25rem;font-weight:700;}
+.stat-box .sl{font-size:.65rem;text-transform:uppercase;color:#888;}
+#pd-partidos-tabla .pt-row{display:flex;align-items:center;gap:4px;padding:3px 2px;border-bottom:1px solid #f0f0f0;font-size:.72rem;}
+#pd-partidos-tabla .pt-row:last-child{border-bottom:none;}
+#pd-partidos-tabla .pt-num{color:#aaa;width:16px;text-align:right;flex-shrink:0;}
+#pd-partidos-tabla .pt-nom{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;}
+#pd-partidos-tabla .pt-cands{width:36px;text-align:right;color:#003478;font-weight:700;flex-shrink:0;}
+#pd-partidos-tabla .pt-bar{height:6px;border-radius:3px;background:#003478;opacity:.7;flex-shrink:0;}
+#pd-partidos-tabla .pt-pct{width:34px;text-align:right;flex-shrink:0;font-size:.68rem;}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="navbar navbar-dark px-3 py-2">
+  <span class="navbar-brand"><i class="fa fa-chart-bar me-2"></i>Cuentas Claras — Análisis Financiero Territoriales 2023</span>
+  <div class="d-flex align-items-center gap-3">
+    <span id="nav-generado" class="text-white-50 small"></span>
+    <button class="btn btn-outline-light btn-sm" onclick="recargar()"><i class="fa fa-sync-alt me-1"></i>Actualizar</button>
+    <a href="buscar.html" class="btn btn-outline-light btn-sm"><i class="fa fa-search me-1"></i>Buscar</a>
+    <a href="partido.html" class="btn btn-outline-light btn-sm"><i class="fa fa-flag me-1"></i>Partidos</a>
+    <a href="adriana.html" class="btn btn-outline-warning btn-sm"><i class="fa fa-arrow-left me-1"></i>Portal</a>
+  </div>
+</nav>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="spinner-ring"></div>
+  <h4 id="loading-msg">Cargando estadísticas...</h4>
+</div>
+
+<!-- SIN DATOS -->
+<div id="sin-datos" style="display:none" class="container mt-5">
+  <div class="no-data">
+    <i class="fa fa-database"></i>
+    <h4>No hay datos indexados aún</h4>
+    <p class="text-muted">Ejecute el indexador para descargar los datos financieros de los candidatos:</p>
+    <code class="d-block bg-dark text-light p-3 rounded mt-2 mb-3" style="font-size:.85rem">python indexar_candidatos_cc.py</code>
+    <p class="text-muted small">Después recargue esta página.</p>
+  </div>
+</div>
+
+<!-- CONTENIDO PRINCIPAL -->
+<div id="main-content" style="display:none" class="container-fluid px-4 py-3">
+
+  <!-- KPI Row -->
+  <div class="row g-3 mb-4" id="kpi-row">
+    <div class="col-6 col-lg-2">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#003478,#005cb2)">
+        <div class="icon"><i class="fa fa-users"></i></div>
+        <div class="val" id="kpi-total">—</div>
+        <div class="lbl">Candidatos indexados</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#198754,#20c997)">
+        <div class="icon"><i class="fa fa-check-circle"></i></div>
+        <div class="val" id="kpi-radicaron">—</div>
+        <div class="lbl">Radicaron</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#dc3545,#e85d72)">
+        <div class="icon"><i class="fa fa-times-circle"></i></div>
+        <div class="val" id="kpi-sinrad">—</div>
+        <div class="lbl">Sin radicación</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#0d6efd,#4ba3ff)">
+        <div class="icon"><i class="fa fa-file-invoice-dollar"></i></div>
+        <div class="val" id="kpi-consolidado">—</div>
+        <div class="lbl">Con consolidado</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#6f42c1,#9a69e0)">
+        <div class="icon"><i class="fa fa-percentage"></i></div>
+        <div class="val" id="kpi-pct-rad">—</div>
+        <div class="lbl">% que radicó</div>
+      </div>
+    </div>
+    <div class="col-6 col-lg-2">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#fd7e14,#ffaa5a)">
+        <div class="icon"><i class="fa fa-map-marker-alt"></i></div>
+        <div class="val" id="kpi-dptos">—</div>
+        <div class="lbl">Departamentos</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Alertas -->
+  <div id="alertas-panel" class="mb-4"></div>
+
+  <!-- ══ MAPA DE COLOMBIA ══ -->
+  <div class="row g-3 mb-4">
+    <!-- Mapa -->
+    <div class="col-lg-8">
+      <div class="chart-card" style="padding:.8rem">
+        <h6 class="mb-2"><i class="fa fa-map me-2 text-primary"></i>Mapa de Colombia — Candidatos por Departamento</h6>
+        <div id="mapa-colombia"></div>
+      </div>
+    </div>
+
+    <!-- Panel lateral -->
+    <div class="col-lg-4">
+      <!-- Default (ningún dpto seleccionado) -->
+      <div id="panel-mapa-default" class="chart-card h-100 d-flex flex-column align-items-center justify-content-center text-center text-muted" style="min-height:300px">
+        <i class="fa fa-hand-pointer fa-2x mb-3 text-primary opacity-50"></i>
+        <p class="mb-1 fw-semibold">Haga clic en un departamento</p>
+        <p class="small">Verá estadísticas y municipios del departamento seleccionado.</p>
+      </div>
+
+      <!-- Panel dpto seleccionado -->
+      <div id="panel-dpto-inner" style="min-height:300px" class="chart-card d-flex d-none flex-column">
+        <!-- Cabecera dpto -->
+        <div class="d-flex align-items-center justify-content-between mb-2">
+          <h6 id="pd-nombre" class="mb-0 text-primary fw-bold" style="font-size:.95rem"></h6>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="deseleccionarDpto()"><i class="fa fa-times"></i></button>
+        </div>
+        <!-- Stats rápidos -->
+        <div class="row g-2 mb-3">
+          <div class="col-6"><div class="stat-box"><div class="sv text-primary" id="pd-cands">—</div><div class="sl">Candidatos</div></div></div>
+          <div class="col-6"><div class="stat-box"><div class="sv text-success" id="pd-rad">—</div><div class="sl">Radicaron</div></div></div>
+          <div class="col-6"><div class="stat-box"><div class="sv text-danger" id="pd-sinrad">—</div><div class="sl">Sin radicación</div></div></div>
+          <div class="col-6"><div class="stat-box"><div class="sv" id="pd-pct">—</div><div class="sl">% Radicó</div></div></div>
+        </div>
+
+        <!-- Nivel: dpto / municipio -->
+        <div class="btn-group btn-group-sm mb-2 w-100">
+          <button id="btn-nivel-dpto" class="btn btn-primary active" onclick="setNivel('dpto')"><i class="fa fa-map-marked-alt me-1"></i>Departamento</button>
+          <button id="btn-nivel-mun"  class="btn btn-outline-primary"  onclick="setNivel('mun')"><i class="fa fa-city me-1"></i>Municipios</button>
+        </div>
+
+        <!-- Vista departamental: ranking partidos + ver tabla -->
+        <div id="vista-dpto">
+          <div class="mb-2">
+            <div class="fw-semibold small text-muted mb-1" style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em">
+              <i class="fa fa-medal me-1 text-warning"></i>Partidos en este departamento
+            </div>
+            <div id="pd-partidos-tabla" style="max-height:220px;overflow-y:auto"></div>
+          </div>
+          <button class="btn btn-sm btn-outline-primary w-100 mt-1" onclick="verEnTablaDpto()">
+            <i class="fa fa-table me-1"></i>Ver candidatos en tabla
+          </button>
+          <a id="btn-ver-mas-dpto" href="#" target="_blank"
+             class="btn btn-sm btn-warning w-100 mt-2 fw-semibold text-dark">
+            <i class="fa fa-chart-bar me-1"></i>Ver más — Ingresos, Gastos y Detalle
+          </a>
+        </div>
+
+        <!-- Vista municipios: lista -->
+        <div id="vista-mun" style="display:none">
+          <input id="fil-mun-panel" type="text" class="form-control form-control-sm mb-2" placeholder="Buscar municipio..." oninput="filtrarMunicipiosPanel()">
+          <div id="lista-municipios" style="max-height:280px;overflow-y:auto"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos fila 1 -->
+  <div class="row g-3 mb-3">
+    <div class="col-lg-4">
+      <div class="chart-card">
+        <h6><i class="fa fa-chart-pie me-2 text-primary"></i>Top 15 Partidos</h6>
+        <div style="position:relative;height:300px"><canvas id="chart-partidos"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="chart-card">
+        <h6><i class="fa fa-chart-pie me-2 text-success"></i>Candidatos por Corporación</h6>
+        <div style="position:relative;height:300px"><canvas id="chart-corp"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-4">
+      <div class="chart-card">
+        <h6><i class="fa fa-chart-pie me-2 text-warning"></i>Radicación nacional</h6>
+        <div style="position:relative;height:300px"><canvas id="chart-radicacion-global"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gráficos fila 2 -->
+  <div class="row g-3 mb-4">
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h6><i class="fa fa-chart-pie me-2 text-danger"></i>Top 15 Departamentos — Candidatos</h6>
+        <div style="position:relative;height:300px"><canvas id="chart-dptos"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="chart-card">
+        <h6><i class="fa fa-chart-pie me-2 text-info"></i>Radicación por Departamento (Top 15)</h6>
+        <div style="position:relative;height:300px"><canvas id="chart-radicacion"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ranking por Partido -->
+  <div class="chart-card mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 class="mb-0"><i class="fa fa-medal me-2 text-warning"></i>Ranking por Partido Político</h6>
+      <div class="d-flex gap-2 align-items-center flex-wrap">
+        <label class="text-muted small me-1">Ordenar por:</label>
+        <button class="btn btn-sm btn-outline-primary active" id="sort-cands"   onclick="sortPartidos('candidatos')">Candidatos</button>
+        <button class="btn btn-sm btn-outline-success"        id="sort-rad"     onclick="sortPartidos('radicaron')">Radicaron</button>
+        <button class="btn btn-sm btn-outline-danger"         id="sort-sinrad"  onclick="sortPartidos('sin_rad')">Sin rad.</button>
+        <button class="btn btn-sm btn-outline-secondary"      id="sort-pct"     onclick="sortPartidos('pct')">% Radicó</button>
+        <input id="fil-partido-q" type="text" class="form-control form-control-sm" placeholder="Buscar partido..." style="width:170px" oninput="renderTablaPartidos()">
+      </div>
+    </div>
+    <div class="table-responsive" style="max-height:420px;overflow-y:auto">
+      <table class="table table-sm table-hover table-bordered align-middle mb-0">
+        <thead class="table-dark sticky-top">
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Partido / Coalición</th>
+            <th class="text-end">Candidatos</th>
+            <th class="text-end">Radicaron</th>
+            <th class="text-end">Sin rad.</th>
+            <th class="text-end">% Radicó</th>
+            <th>Por Corporación</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-partidos-body">
+          <tr><td colspan="7" class="text-center text-muted py-3">Cargando...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Tabla de Candidatos -->
+  <div class="chart-card mb-4">
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <h6 class="mb-0"><i class="fa fa-table me-2"></i>Candidatos Indexados</h6>
+      <div class="d-flex gap-2 flex-wrap">
+        <select id="fil-dpto" class="form-select form-select-sm" style="width:180px" onchange="cargarMunicipios()">
+          <option value="">Todos los dptos</option>
+        </select>
+        <select id="fil-mun" class="form-select form-select-sm" style="width:180px">
+          <option value="">Todos los municipios</option>
+        </select>
+        <select id="fil-corp" class="form-select form-select-sm" style="width:160px">
+          <option value="">Todas las corp.</option>
+          <option value="3">Alcaldía</option>
+          <option value="2">Gobernación</option>
+          <option value="6">Concejo</option>
+          <option value="5">Asamblea</option>
+          <option value="7">JAL</option>
+        </select>
+        <select id="fil-sinrad" class="form-select form-select-sm" style="width:170px">
+          <option value="">Todos</option>
+          <option value="1">Sin radicación</option>
+        </select>
+        <input id="fil-q" type="text" class="form-control form-control-sm" placeholder="Buscar nombre / cédula..." style="width:200px">
+        <button class="btn btn-primary btn-sm" onclick="buscarCandidatos(1)"><i class="fa fa-search me-1"></i>Buscar</button>
+      </div>
+    </div>
+
+    <!-- Paginación superior -->
+    <div id="pag-info" class="text-muted small mb-2"></div>
+
+    <div class="table-responsive">
+      <table class="table table-sm table-hover table-bordered align-middle" id="tbl-cands">
+        <thead class="table-dark">
+          <tr>
+            <th>#</th>
+            <th>Nombre</th>
+            <th>Cédula</th>
+            <th>Partido</th>
+            <th>Corporación</th>
+            <th>Departamento</th>
+            <th>Municipio</th>
+            <th class="text-center">Radicó</th>
+            <th>Fecha radicación</th>
+          </tr>
+        </thead>
+        <tbody id="tbl-cands-body">
+          <tr><td colspan="10" class="text-center text-muted py-3">Use el buscador para cargar candidatos</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Paginación inferior -->
+    <div id="pag-nav" class="d-flex justify-content-center mt-3"></div>
+  </div>
+
+</div><!-- /main-content -->
+
+<script src="vendor/js/jquery-3.7.1.min.js"></script>
+<script src="vendor/js/bootstrap.bundle.min.js"></script>
+<script src="vendor/js/chart.umd.min.js"></script>
+<script src="vendor/js/leaflet.js"></script>
+
+<script>
+'use strict';
+
+// ── Formateo ───────────────────────────────────────────────────────────────
+function fmtMillones(v){
+  v = parseFloat(v)||0;
+  if(Math.abs(v)>=1e9) return (v/1e9).toFixed(1)+' B';
+  if(Math.abs(v)>=1e6) return (v/1e6).toFixed(1)+' M';
+  if(Math.abs(v)>=1e3) return (v/1e3).toFixed(0)+' K';
+  return v.toFixed(0);
+}
+function fmtPesos(v){
+  v = parseFloat(v)||0;
+  return '$'+v.toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
+function fmtNum(v){
+  return (parseFloat(v)||0).toLocaleString('es-CO');
+}
+
+// ── Paletas ────────────────────────────────────────────────────────────────
+const PALETA = [
+  '#003478','#c8102e','#f4b223','#198754','#6f42c1',
+  '#fd7e14','#0dcaf0','#20c997','#e83e8c','#6c757d',
+  '#0d6efd','#dc3545','#ffc107','#28a745','#6610f2',
+];
+
+// ── Charts globales ────────────────────────────────────────────────────────
+var charts = {};
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+// ── Cargar stats ───────────────────────────────────────────────────────────
+var _stats = null;
+var _paginaActual = 1;
+
+function recargar(){
+  document.getElementById('loading').style.display='flex';
+  document.getElementById('main-content').style.display='none';
+  document.getElementById('sin-datos').style.display='none';
+  fetch('/api/cc_stats')
+    .then(r=>r.json())
+    .then(function(d){
+      document.getElementById('loading').style.display='none';
+      if(d.error){
+        document.getElementById('sin-datos').style.display='block';
+        return;
+      }
+      _stats = d;
+      document.getElementById('main-content').style.display='block';
+      renderTodo(d);
+    })
+    .catch(function(e){
+      document.getElementById('loading').style.display='none';
+      document.getElementById('sin-datos').style.display='block';
+      console.error(e);
+    });
+}
+
+function renderTodo(d){
+  // KPIs
+  document.getElementById('kpi-total').textContent       = fmtNum(d.total_candidatos);
+  document.getElementById('kpi-radicaron').textContent   = fmtNum(d.radicaron);
+  document.getElementById('kpi-sinrad').textContent      = fmtNum(d.sin_radicacion);
+  document.getElementById('kpi-consolidado').textContent = fmtNum(d.con_consolidado);
+  var pctRad = d.total_candidatos>0 ? (d.radicaron/d.total_candidatos*100).toFixed(1)+'%' : '—';
+  document.getElementById('kpi-pct-rad').textContent = pctRad;
+  document.getElementById('kpi-dptos').textContent = fmtNum(Object.keys(d.por_dpto||{}).length);
+  if(d._generado) document.getElementById('nav-generado').textContent='Generado: '+d._generado;
+
+  // Alertas
+  renderAlertas(d);
+
+  // Llenar selector de dptos
+  var sel = document.getElementById('fil-dpto');
+  sel.innerHTML='<option value="">Todos los dptos</option>';
+  var dptos = Object.keys(d.por_dpto||{}).sort();
+  dptos.forEach(function(dp){
+    sel.innerHTML+='<option value="'+dp+'">'+dp+'</option>';
+  });
+
+  // Mapa
+  iniciarMapa();
+
+  // Gráficos
+  renderChartPartidos(d.por_partido||{});
+  renderChartCorp(d.por_corp||{});
+  renderChartRadicacionGlobal(d);
+  renderChartDptos(d.por_dpto||{});
+  renderChartRadicacion(d.por_dpto||{});
+  renderTablaPartidos();
+}
+
+// ── Alertas ────────────────────────────────────────────────────────────────
+function renderAlertas(d){
+  var panel = document.getElementById('alertas-panel');
+  var html = '';
+  var pctSinRad = d.total_candidatos>0 ? (d.sin_radicacion/d.total_candidatos*100).toFixed(1) : 0;
+  if(d.sin_radicacion>0){
+    html+='<div class="alerta-strip"><i class="fa fa-exclamation-triangle text-warning me-2"></i>'
+         +'<strong>'+fmtNum(d.sin_radicacion)+' candidatos</strong> ('+pctSinRad+'%) no radicaron su informe financiero.</div>';
+  }
+  var pctSinCons = d.total_candidatos>0
+    ? ((d.total_candidatos-d.con_consolidado)/d.total_candidatos*100).toFixed(1) : 0;
+  if(d.total_candidatos-d.con_consolidado > 0){
+    html+='<div class="alerta-strip"><i class="fa fa-info-circle text-info me-2"></i>'
+         +(d.total_candidatos-d.con_consolidado).toLocaleString()+' candidatos ('+pctSinCons+'%) sin consolidado disponible en CNE.</div>';
+  }
+  var pctRad2 = d.total_candidatos>0?(d.radicaron/d.total_candidatos*100).toFixed(1):0;
+  if(pctRad2 < 50){
+    html+='<div class="alerta-strip" style="border-color:#0d6efd"><i class="fa fa-info-circle text-primary me-2"></i>'
+         +'Solo el <strong>'+pctRad2+'%</strong> de los candidatos radicó informe financiero ante el CNE.</div>';
+  }
+  panel.innerHTML=html;
+}
+
+// ── Chart: Partidos (donut) ────────────────────────────────────────────────
+function renderChartPartidos(data){
+  destroyChart('partidos');
+  var entries = Object.entries(data)
+    .filter(function(e){return e[1].candidatos>0;})
+    .sort(function(a,b){return b[1].candidatos-a[1].candidatos;})
+    .slice(0,15);
+  if(!entries.length) return;
+  var ctx = document.getElementById('chart-partidos').getContext('2d');
+  charts.partidos = new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels: entries.map(function(e){return e[0].length>25?e[0].slice(0,23)+'…':e[0];}),
+      datasets:[{
+        data: entries.map(function(e){return e[1].candidatos||0;}),
+        backgroundColor: PALETA.concat(PALETA).slice(0,entries.length),
+        hoverOffset:6
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:function(c){return c.label+': '+c.parsed.toLocaleString('es-CO');}}}
+      }
+    }
+  });
+}
+
+// ── Chart: Corporación ────────────────────────────────────────────────────
+function renderChartCorp(data){
+  destroyChart('corp');
+  var entries = Object.entries(data)
+    .filter(function(e){return e[1].candidatos>0;})
+    .sort(function(a,b){return b[1].candidatos-a[1].candidatos;});
+  if(!entries.length) return;
+  var ctx = document.getElementById('chart-corp').getContext('2d');
+  charts.corp = new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels: entries.map(function(e){return e[0];}),
+      datasets:[{
+        data: entries.map(function(e){return e[1].candidatos;}),
+        backgroundColor: PALETA.slice(0,entries.length),
+        hoverOffset:6
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:11}}},
+        tooltip:{callbacks:{label:function(c){return c.label+': '+c.parsed.toLocaleString('es-CO');}}}
+      }
+    }
+  });
+}
+
+// ── Chart: Departamentos (donut) ──────────────────────────────────────────
+function renderChartDptos(data){
+  destroyChart('dptos');
+  var entries = Object.entries(data)
+    .filter(function(e){return e[1].candidatos>0;})
+    .sort(function(a,b){return b[1].candidatos-a[1].candidatos;})
+    .slice(0,15);
+  if(!entries.length) return;
+  var ctx = document.getElementById('chart-dptos').getContext('2d');
+  charts.dptos = new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels: entries.map(function(e){return e[0].length>18?e[0].slice(0,16)+'…':e[0];}),
+      datasets:[{
+        data: entries.map(function(e){return e[1].candidatos||0;}),
+        backgroundColor: PALETA.concat(PALETA).slice(0,entries.length),
+        hoverOffset:6
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:function(c){return c.label+': '+c.parsed.toLocaleString('es-CO');}}}
+      }
+    }
+  });
+}
+
+// ── Chart: Radicación global (pie) ────────────────────────────────────────
+function renderChartRadicacionGlobal(d){
+  destroyChart('radicacion-global');
+  var rad = d.radicaron||0, sinrad = d.sin_radicacion||0;
+  if(!rad && !sinrad) return;
+  var ctx = document.getElementById('chart-radicacion-global').getContext('2d');
+  charts['radicacion-global'] = new Chart(ctx,{
+    type:'pie',
+    data:{
+      labels:['Radicaron','Sin radicación'],
+      datasets:[{
+        data:[rad, sinrad],
+        backgroundColor:['rgba(25,135,84,.8)','rgba(220,53,69,.8)'],
+        hoverOffset:6
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'bottom'},
+        tooltip:{callbacks:{label:function(c){return c.label+': '+c.parsed.toLocaleString('es-CO')+' ('+((c.parsed/(rad+sinrad))*100).toFixed(1)+'%)'}}}
+      }
+    }
+  });
+}
+
+// ── Chart: Radicación por dpto (donut) ────────────────────────────────────
+function renderChartRadicacion(data){
+  destroyChart('radicacion');
+  var entries = Object.entries(data)
+    .filter(function(e){return e[1].candidatos>0;})
+    .sort(function(a,b){return (b[1].radicaron||0)-(a[1].radicaron||0);})
+    .slice(0,15);
+  if(!entries.length) return;
+  var ctx = document.getElementById('chart-radicacion').getContext('2d');
+  charts.radicacion = new Chart(ctx,{
+    type:'doughnut',
+    data:{
+      labels: entries.map(function(e){return e[0].length>18?e[0].slice(0,16)+'…':e[0];}),
+      datasets:[{
+        data: entries.map(function(e){return e[1].radicaron||0;}),
+        backgroundColor: PALETA.concat(PALETA).slice(0,entries.length),
+        hoverOffset:6
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'right',labels:{font:{size:10},boxWidth:12}},
+        tooltip:{callbacks:{label:function(c){return c.label+': '+c.parsed.toLocaleString('es-CO');}}}
+      }
+    }
+  });
+}
+
+// ── Tabla de partidos ──────────────────────────────────────────────────────
+var _sortPartidos = 'candidatos';
+
+function sortPartidos(key){
+  _sortPartidos = key;
+  ['cands','rad','sinrad','pct'].forEach(function(k){
+    document.getElementById('sort-'+k).classList.remove('active');
+  });
+  document.getElementById('sort-'+{candidatos:'cands',radicaron:'rad',sin_rad:'sinrad',pct:'pct'}[key]).classList.add('active');
+  renderTablaPartidos();
+}
+
+function renderTablaPartidos(){
+  if(!_stats) return;
+  var q = (document.getElementById('fil-partido-q').value||'').toUpperCase().trim();
+  var data = _stats.por_partido || {};
+  var corpsData = _stats.por_partido_corp || {};
+  var CORP_COLORS = {Alcaldia:'#0d6efd',Concejo:'#6f42c1',Asamblea:'#198754',Gobernacion:'#fd7e14',JAL:'#20c997',Otro:'#6c757d'};
+
+  var entries = Object.entries(data).filter(function(e){
+    return e[1].candidatos>0 && (!q || e[0].toUpperCase().indexOf(q)>=0);
+  }).map(function(e){
+    var cands = e[1].candidatos||0;
+    var rad   = e[1].radicaron||0;
+    var sinrad = cands - rad;
+    var pct   = cands>0 ? (rad/cands*100) : 0;
+    return {nombre:e[0], candidatos:cands, radicaron:rad, sin_rad:sinrad, pct:pct};
+  });
+
+  entries.sort(function(a,b){ return b[_sortPartidos]-a[_sortPartidos]; });
+
+  if(!entries.length){
+    document.getElementById('tbl-partidos-body').innerHTML='<tr><td colspan="7" class="text-center text-muted py-3">Sin resultados</td></tr>';
+    return;
+  }
+
+  var html='';
+  entries.forEach(function(p,i){
+    var corps = corpsData[p.nombre] || {};
+    var corpsHtml = Object.entries(corps).sort(function(a,b){return b[1].candidatos-a[1].candidatos;}).map(function(c){
+      var col = CORP_COLORS[c[0]] || '#6c757d';
+      return '<span style="background:'+col+';color:#fff;border-radius:6px;padding:1px 6px;font-size:.7rem;margin:1px;display:inline-block">'+c[0]+' '+c[1].candidatos+'</span>';
+    }).join('');
+    var pctColor = p.pct>=70?'text-success':p.pct>=40?'text-warning':'text-danger';
+    html+='<tr>'
+      +'<td class="text-muted">'+(i+1)+'</td>'
+      +'<td class="fw-semibold" style="max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(p.nombre)+'">'+esc(p.nombre)+'</td>'
+      +'<td class="text-end fw-bold">'+p.candidatos.toLocaleString('es-CO')+'</td>'
+      +'<td class="text-end text-success">'+p.radicaron.toLocaleString('es-CO')+'</td>'
+      +'<td class="text-end text-danger">'+p.sin_rad.toLocaleString('es-CO')+'</td>'
+      +'<td class="text-end '+pctColor+' fw-semibold">'+p.pct.toFixed(1)+'%</td>'
+      +'<td>'+corpsHtml+'</td>'
+      +'</tr>';
+  });
+  document.getElementById('tbl-partidos-body').innerHTML=html;
+}
+
+// ── Tabla de candidatos ────────────────────────────────────────────────────
+var _totalCands=0, _perPage=100;
+
+function buscarCandidatos(pg){
+  _paginaActual = pg||1;
+  var dpto   = document.getElementById('fil-dpto').value;
+  var mun    = document.getElementById('fil-mun').value;
+  var corp   = document.getElementById('fil-corp').value;
+  var sinrad = document.getElementById('fil-sinrad').value;
+  var q      = document.getElementById('fil-q').value.trim();
+  var params = new URLSearchParams({
+    page: _paginaActual,
+    per_page: _perPage,
+  });
+  if(dpto)   params.set('dpto',dpto);
+  if(mun)    params.set('mun',mun);
+  if(corp)   params.set('corp_id',corp);
+  if(sinrad) params.set('sin_radicacion','1');
+  if(q)      params.set('q',q);
+
+  document.getElementById('tbl-cands-body').innerHTML=
+    '<tr><td colspan="10" class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary me-2"></div>Cargando...</td></tr>';
+  document.getElementById('pag-nav').innerHTML='';
+
+  fetch('/api/cc_candidatos?'+params.toString())
+    .then(function(r){return r.json();})
+    .then(function(d){
+      _totalCands = d.total||0;
+      renderTablaCands(d.candidatos||[]);
+      renderPaginacion(d.total, d.page, d.per_page);
+      document.getElementById('pag-info').textContent=
+        'Mostrando '+(((d.page-1)*d.per_page)+1)+' – '+Math.min(d.page*d.per_page,d.total)+
+        ' de '+fmtNum(d.total)+' candidatos';
+    })
+    .catch(function(e){
+      document.getElementById('tbl-cands-body').innerHTML=
+        '<tr><td colspan="10" class="text-danger text-center">Error: '+e.message+'</td></tr>';
+    });
+}
+
+function renderTablaCands(rows){
+  if(!rows.length){
+    document.getElementById('tbl-cands-body').innerHTML=
+      '<tr><td colspan="10" class="text-muted text-center py-3">Sin resultados</td></tr>';
+    return;
+  }
+  var offset = ((_paginaActual-1)*_perPage);
+  var html='';
+  rows.forEach(function(c,i){
+    var radBadge = c.radico
+      ? '<span class="badge-radico"><i class="fa fa-check me-1"></i>Sí</span>'
+      : '<span class="badge-norad"><i class="fa fa-times me-1"></i>No</span>';
+    html+='<tr>'
+      +'<td class="text-muted">'+(offset+i+1)+'</td>'
+      +'<td class="fw-semibold">'+esc(c.nombre||'')+'</td>'
+      +'<td class="text-muted">'+esc(c.cedula||'')+'</td>'
+      +'<td style="max-width:140px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.org||'')+'">'+esc(c.org||'—')+'</td>'
+      +'<td>'+esc(c.corp||'—')+'</td>'
+      +'<td>'+esc(c.dpto||'')+'</td>'
+      +'<td>'+esc(c.mun||'')+'</td>'
+      +'<td class="text-center">'+radBadge+'</td>'
+      +'<td class="text-muted small">'+(c.fecha_rad||'—')+'</td>'
+      +'</tr>';
+  });
+  document.getElementById('tbl-cands-body').innerHTML=html;
+}
+
+function renderPaginacion(total, page, perPage){
+  var pages = Math.ceil(total/perPage);
+  if(pages<=1){document.getElementById('pag-nav').innerHTML='';return;}
+  var html='<nav><ul class="pagination pagination-sm mb-0">';
+  html+='<li class="page-item'+(page<=1?' disabled':'')+'"><a class="page-link" href="#" onclick="buscarCandidatos('+(page-1)+');return false">‹</a></li>';
+  var from=Math.max(1,page-3), to=Math.min(pages,page+3);
+  if(from>1) html+='<li class="page-item"><a class="page-link" href="#" onclick="buscarCandidatos(1);return false">1</a></li>'+(from>2?'<li class="page-item disabled"><span class="page-link">…</span></li>':'');
+  for(var p=from;p<=to;p++){
+    html+='<li class="page-item'+(p===page?' active':'')+'"><a class="page-link" href="#" onclick="buscarCandidatos('+p+');return false">'+p+'</a></li>';
+  }
+  if(to<pages) html+=(to<pages-1?'<li class="page-item disabled"><span class="page-link">…</span></li>':'')+'<li class="page-item"><a class="page-link" href="#" onclick="buscarCandidatos('+pages+');return false">'+pages+'</a></li>';
+  html+='<li class="page-item'+(page>=pages?' disabled':'')+'"><a class="page-link" href="#" onclick="buscarCandidatos('+(page+1)+');return false">›</a></li>';
+  html+='</ul></nav>';
+  document.getElementById('pag-nav').innerHTML=html;
+}
+
+function esc(s){
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Cargar municipios al cambiar dpto ──────────────────────────────────────
+function cargarMunicipios(){
+  var dpto = document.getElementById('fil-dpto').value;
+  var sel  = document.getElementById('fil-mun');
+  sel.innerHTML = '<option value="">Todos los municipios</option>';
+  if(!dpto) return;
+  fetch('/api/cc_municipios?dpto='+encodeURIComponent(dpto))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      (d.municipios||[]).forEach(function(m){
+        sel.innerHTML += '<option value="'+m+'">'+m.replace(/_/g,' ')+'</option>';
+      });
+    });
+}
+
+// ── Tecla Enter en el buscador ─────────────────────────────────────────────
+document.getElementById('fil-q').addEventListener('keydown',function(e){
+  if(e.key==='Enter') buscarCandidatos(1);
+});
+
+// ══════════════════════════════════════════════════════════════════
+//  MAPA DE COLOMBIA
+// ══════════════════════════════════════════════════════════════════
+var _mapa = null;
+var _mapaGeoLayer = null;
+var _dptoSeleccionado = null;
+var _nivelMapa = 'dpto';  // 'dpto' | 'mun'
+var _munsCache = {};      // dpto → [{nombre, candidatos, radicaron}]
+
+// Normalizar nombre de departamento del GeoJSON → nombre en _stats
+var DPTO_MAP = {
+  'SANTAFE DE BOGOTA D.C': 'BOGOTA D.C.',
+  'NARIÑO':  'NARINO',
+  'CAQUETÁ': 'CAQUETA',
+  'ARCHIPIELAGO DE SAN ANDRES PROVIDENCIA Y SANTA CATALINA':
+      'ARCHIPIELAGO DE SAN ANDRES, PROVIDENCIA Y SANTA CATALINA',
+};
+function normDpto(nombre){
+  if(!nombre) return '';
+  var n = nombre.toUpperCase().trim();
+  return DPTO_MAP[n] || n;
+}
+
+// Escala de color según cantidad de candidatos
+function colorPorCandidatos(n){
+  if(!n) return '#e8ecf0';
+  if(n < 500)  return '#c6dbef';
+  if(n < 1500) return '#9ecae1';
+  if(n < 3000) return '#6baed6';
+  if(n < 6000) return '#3182bd';
+  if(n < 12000)return '#08519c';
+  return '#08306b';
+}
+
+function estiloDpto(feature){
+  var nombre = normDpto(feature.properties.NOMBRE);
+  var datos  = (_stats && _stats.por_dpto) ? (_stats.por_dpto[nombre]||{}) : {};
+  return {
+    fillColor:   colorPorCandidatos(datos.candidatos||0),
+    weight:      1,
+    opacity:     1,
+    color:       '#fff',
+    fillOpacity: 0.82
+  };
+}
+
+function iniciarMapa(){
+  if(_mapa) return;
+  _mapa = L.map('mapa-colombia',{
+    center: [4.5, -74.2],
+    zoom: 5,
+    zoomControl: true,
+    attributionControl: false,
+    scrollWheelZoom: true
+  });
+
+  // Fondo gris muy suave (sin tiles externos)
+  _mapa.getContainer().style.background = '#f0f4f8';
+
+  fetch('data/colombia_dptos_simple.geojson')
+    .then(function(r){return r.json();})
+    .then(function(gj){
+      _mapaGeoLayer = L.geoJSON(gj, {
+        style: estiloDpto,
+        onEachFeature: function(feature, layer){
+          var nombre = normDpto(feature.properties.NOMBRE);
+          var datos  = (_stats && _stats.por_dpto) ? (_stats.por_dpto[nombre]||{}) : {};
+          var cands  = datos.candidatos||0;
+          var rad    = datos.radicaron||0;
+          var pct    = cands>0 ? (rad/cands*100).toFixed(1) : '—';
+
+          layer.bindTooltip(
+            '<strong>'+nombre+'</strong><br>'+
+            'Candidatos: <b>'+cands.toLocaleString('es-CO')+'</b><br>'+
+            'Radicaron: <b>'+rad.toLocaleString('es-CO')+'</b> ('+pct+'%)',
+            {sticky:true, className:''}
+          );
+
+          layer.on({
+            mouseover: function(e){
+              var l = e.target;
+              if(nombre !== _dptoSeleccionado)
+                l.setStyle({weight:2.5, color:'#003478', fillOpacity:0.95});
+            },
+            mouseout: function(e){
+              if(normDpto(feature.properties.NOMBRE) !== _dptoSeleccionado)
+                _mapaGeoLayer.resetStyle(e.target);
+            },
+            click: function(e){
+              seleccionarDpto(normDpto(feature.properties.NOMBRE), layer);
+            }
+          });
+        }
+      }).addTo(_mapa);
+
+      // Leyenda
+      var leyenda = L.control({position:'bottomleft'});
+      leyenda.onAdd = function(){
+        var div = L.DomUtil.create('div','mapa-leyenda');
+        var breaks = [[0,'Sin datos','#e8ecf0'],['1-499','+1','#c6dbef'],
+          ['500-1.499','500','#9ecae1'],['1.500-2.999','1.500','#6baed6'],
+          ['3.000-5.999','3.000','#3182bd'],['6.000-11.999','6.000','#08519c'],
+          ['+12.000','12.000','#08306b']];
+        div.innerHTML='<b>Candidatos</b><br>';
+        breaks.forEach(function(b){
+          div.innerHTML+='<i style="background:'+b[2]+'"></i>'+b[0]+'<br>';
+        });
+        return div;
+      };
+      leyenda.addTo(_mapa);
+    });
+}
+
+function seleccionarDpto(nombre, clickedLayer){
+  _dptoSeleccionado = nombre;
+
+  // Resaltar capa
+  if(_mapaGeoLayer){
+    _mapaGeoLayer.eachLayer(function(l){
+      var ln = normDpto(l.feature.properties.NOMBRE);
+      if(ln === nombre){
+        l.setStyle({weight:3, color:'#c8102e', fillOpacity:1});
+        _mapa.fitBounds(l.getBounds(), {padding:[20,20]});
+      } else {
+        _mapaGeoLayer.resetStyle(l);
+      }
+    });
+  }
+
+  // Mostrar panel
+  var datos = (_stats && _stats.por_dpto) ? (_stats.por_dpto[nombre]||{}) : {};
+  var cands = datos.candidatos||0, rad = datos.radicaron||0;
+  var sinrad= cands-rad;
+  var pct   = cands>0 ? (rad/cands*100).toFixed(1)+'%' : '—';
+  var pctNum= cands>0 ? (rad/cands*100) : 0;
+
+  document.getElementById('pd-nombre').textContent = nombre;
+  document.getElementById('pd-cands').textContent  = cands.toLocaleString('es-CO');
+  document.getElementById('pd-rad').textContent    = rad.toLocaleString('es-CO');
+  document.getElementById('pd-sinrad').textContent = sinrad.toLocaleString('es-CO');
+  var pctEl = document.getElementById('pd-pct');
+  pctEl.textContent = pct;
+  pctEl.className   = 'sv '+(pctNum>=60?'text-success':pctNum>=35?'text-warning':'text-danger');
+
+  document.getElementById('panel-mapa-default').classList.add('d-none');
+  document.getElementById('panel-dpto-inner').classList.remove('d-none');
+
+  // Sincronizar selector de dpto en la tabla
+  var sel = document.getElementById('fil-dpto');
+  for(var i=0;i<sel.options.length;i++){
+    if(sel.options[i].value === nombre){ sel.selectedIndex=i; break; }
+  }
+  cargarMunicipios();
+
+  // Ranking de partidos en este dpto
+  renderPartidosDpto(nombre);
+
+  // Botón Ver más → detalle_dpto.html
+  document.getElementById('btn-ver-mas-dpto').href =
+    'detalle_dpto.html?dpto=' + encodeURIComponent(nombre);
+
+  // Cargar municipios en panel lateral si estamos en modo municipio
+  if(_nivelMapa==='mun') cargarMunicipiosPanel(nombre);
+}
+
+function deseleccionarDpto(){
+  _dptoSeleccionado = null;
+  if(_mapaGeoLayer) _mapaGeoLayer.eachLayer(function(l){ _mapaGeoLayer.resetStyle(l); });
+  _mapa.setView([4.5,-74.2],5);
+  document.getElementById('panel-dpto-inner').classList.add('d-none');
+  document.getElementById('panel-mapa-default').classList.remove('d-none');
+  document.getElementById('fil-dpto').value='';
+  document.getElementById('fil-mun').innerHTML='<option value="">Todos los municipios</option>';
+}
+
+function setNivel(nivel){
+  _nivelMapa = nivel;
+  document.getElementById('btn-nivel-dpto').className = 'btn btn-sm '+(nivel==='dpto'?'btn-primary active':'btn-outline-primary');
+  document.getElementById('btn-nivel-mun').className  = 'btn btn-sm '+(nivel==='mun' ?'btn-primary active':'btn-outline-primary');
+  document.getElementById('vista-dpto').style.display = nivel==='dpto'?'':'none';
+  document.getElementById('vista-mun').style.display  = nivel==='mun' ?'':'none';
+  if(nivel==='mun' && _dptoSeleccionado) cargarMunicipiosPanel(_dptoSeleccionado);
+}
+
+function cargarMunicipiosPanel(dpto){
+  if(_munsCache[dpto]){
+    renderListaMunicipios(_munsCache[dpto]);
+    return;
+  }
+  var lista = document.getElementById('lista-municipios');
+  lista.innerHTML='<div class="text-center text-muted py-2"><div class="spinner-border spinner-border-sm me-2"></div>Cargando...</div>';
+  fetch('/api/cc_municipios?dpto='+encodeURIComponent(dpto))
+    .then(function(r){return r.json();})
+    .then(function(d){
+      var muns = (d.municipios||[]).map(function(m){return {nombre:m};});
+      _munsCache[dpto] = muns;
+      renderListaMunicipios(muns);
+    });
+}
+
+var _munActiva = '';
+function renderListaMunicipios(muns){
+  var q = (document.getElementById('fil-mun-panel').value||'').toUpperCase().trim();
+  var lista = document.getElementById('lista-municipios');
+  var filtered = muns.filter(function(m){ return !q || m.nombre.toUpperCase().indexOf(q)>=0; });
+  if(!filtered.length){
+    lista.innerHTML='<div class="text-muted text-center small py-2">Sin municipios</div>';
+    return;
+  }
+  lista.innerHTML = filtered.map(function(m){
+    var activo = m.nombre === _munActiva ? ' activo' : '';
+    var display = m.nombre.replace(/_/g,' ');
+    return '<div class="mun-item'+activo+'" onclick="seleccionarMunicipio(\''+esc(m.nombre)+'\')">'
+      +'<i class="fa fa-map-pin me-1 text-muted" style="font-size:.7rem"></i>'+esc(display)+'</div>';
+  }).join('');
+}
+
+function filtrarMunicipiosPanel(){
+  if(_dptoSeleccionado && _munsCache[_dptoSeleccionado])
+    renderListaMunicipios(_munsCache[_dptoSeleccionado]);
+}
+
+function seleccionarMunicipio(munNombre){
+  _munActiva = munNombre;
+  // Sincronizar dropdown de municipio
+  var sel = document.getElementById('fil-mun');
+  for(var i=0;i<sel.options.length;i++){
+    if(sel.options[i].value === munNombre){ sel.selectedIndex=i; break; }
+  }
+  // Actualizar visual
+  if(_dptoSeleccionado && _munsCache[_dptoSeleccionado])
+    renderListaMunicipios(_munsCache[_dptoSeleccionado]);
+  // Ir a tabla
+  verEnTablaMun();
+}
+
+function renderPartidosDpto(dpto){
+  var cont = document.getElementById('pd-partidos-tabla');
+  if(!_stats || !_stats.por_partido_dpto){cont.innerHTML='';return;}
+  var ppd = _stats.por_partido_dpto;
+  var filas = [];
+  Object.keys(ppd).forEach(function(partido){
+    var d = (ppd[partido]||{})[dpto];
+    if(d && d.candidatos>0){
+      filas.push({
+        nombre: partido,
+        candidatos: d.candidatos,
+        radicaron: d.radicaron||0,
+        pct: d.candidatos>0 ? (d.radicaron||0)/d.candidatos*100 : 0
+      });
+    }
+  });
+  filas.sort(function(a,b){return b.candidatos-a.candidatos;});
+  if(!filas.length){cont.innerHTML='<div class="text-muted small py-1">Sin datos</div>';return;}
+  var maxC = filas[0].candidatos;
+  var html = filas.map(function(f,i){
+    var barW = Math.round(f.candidatos/maxC*60);
+    var pctColor = f.pct>=60?'#198754':f.pct>=35?'#ffc107':'#dc3545';
+    var nomCorto = f.nombre.length>28 ? f.nombre.slice(0,26)+'…' : f.nombre;
+    return '<div class="pt-row" title="'+esc(f.nombre)+'">'
+      +'<span class="pt-num">'+(i+1)+'</span>'
+      +'<span class="pt-nom">'+esc(nomCorto)+'</span>'
+      +'<div class="pt-bar" style="width:'+barW+'px"></div>'
+      +'<span class="pt-cands">'+f.candidatos.toLocaleString('es-CO')+'</span>'
+      +'<span class="pt-pct" style="color:'+pctColor+'">'+f.pct.toFixed(0)+'%</span>'
+      +'</div>';
+  }).join('');
+  cont.innerHTML = html;
+}
+
+function verEnTablaDpto(){
+  document.getElementById('fil-mun').value='';
+  _munActiva='';
+  buscarCandidatos(1);
+  document.getElementById('tbl-cands').scrollIntoView({behavior:'smooth'});
+}
+
+function verEnTablaMun(){
+  buscarCandidatos(1);
+  document.getElementById('tbl-cands').scrollIntoView({behavior:'smooth'});
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+recargar();
+</script>
+</body>
+</html>

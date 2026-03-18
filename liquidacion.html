@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Liquidación por Partido — Cuentas Claras CNE</title>
+<link rel="stylesheet" href="vendor/css/bootstrap.min.css">
+<link rel="stylesheet" href="vendor/css/all.min.css">
+<style>
+body{background:#f4f6fb;font-family:'Segoe UI',sans-serif;font-size:.88rem}
+.navbar{background:linear-gradient(90deg,#003478,#1565c0);padding:.5rem 1.5rem}
+.navbar-brand{color:#fff!important;font-weight:700;font-size:1.1rem}
+.section-card{background:#fff;border-radius:12px;padding:1.2rem 1.4rem;margin-bottom:1.2rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.section-title{font-weight:700;font-size:.95rem;color:#003478;border-bottom:2px solid #ffd600;padding-bottom:.4rem;margin-bottom:.9rem}
+.kpi-card{border-radius:12px;padding:.9rem 1.1rem;color:#fff;display:flex;align-items:center;gap:.8rem}
+.kpi-card .icon{font-size:1.4rem;opacity:.8}
+.kpi-card .val{font-size:1.15rem;font-weight:700;line-height:1}
+.kpi-card .lbl{font-size:.66rem;opacity:.85;text-transform:uppercase;letter-spacing:.05em}
+.kpi-blue{background:linear-gradient(135deg,#003478,#1565c0)}
+.kpi-red{background:linear-gradient(135deg,#b71c1c,#c62828)}
+.kpi-purple{background:linear-gradient(135deg,#4a148c,#6a1b9a)}
+.kpi-green{background:linear-gradient(135deg,#1b5e20,#2e7d32)}
+.kpi-teal{background:linear-gradient(135deg,#00695c,#00897b)}
+.kpi-orange{background:linear-gradient(135deg,#e65100,#f57c00)}
+.badge-corp{font-size:.65rem;padding:.15rem .45rem;border-radius:20px}
+.badge-pagado{background:#1b5e20;color:#fff;font-size:.62rem;padding:.1rem .4rem;border-radius:10px}
+.badge-pendiente{background:#e65100;color:#fff;font-size:.62rem;padding:.1rem .4rem;border-radius:10px}
+#loading-bar{height:3px;background:#ffd600;position:fixed;top:0;left:0;transition:width .3s;z-index:9999}
+th{white-space:nowrap;font-size:.78rem}
+td{font-size:.8rem}
+.diff-pos{color:#1b5e20;font-weight:600}
+.diff-neg{color:#b71c1c;font-weight:600}
+</style>
+</head>
+<body>
+<div id="loading-bar" style="width:0%"></div>
+
+<nav class="navbar navbar-dark px-3 py-2">
+  <a class="navbar-brand" href="analisis_cc.html"><i class="fa fa-chart-bar me-2"></i>Cuentas Claras CNE</a>
+  <div class="ms-auto d-flex gap-2">
+    <a href="partido.html"  class="btn btn-outline-light btn-sm"><i class="fa fa-flag me-1"></i>Por Partido</a>
+    <a href="buscar.html"   class="btn btn-outline-light btn-sm"><i class="fa fa-search me-1"></i>Buscar</a>
+    <a href="adriana.html"  class="btn btn-outline-warning btn-sm"><i class="fa fa-arrow-left me-1"></i>Portal</a>
+  </div>
+</nav>
+
+<div class="container-fluid px-3 py-3">
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <div>
+      <h4 class="mb-0 fw-bold text-primary"><i class="fa fa-balance-scale me-2"></i>Liquidación Territoriales 2023 — Por Partido</h4>
+      <small class="text-muted">Tarifa CNE: Alcaldía/Concejo/JAL = $2,766/voto · Asamblea/Gobernación = $4,590/voto &nbsp;|&nbsp; <strong>Liquidación = MIN(Gastos, Valor Votos)</strong> · Neto = Liquidación × 99%</small>
+    </div>
+    <button class="btn btn-sm btn-outline-success" onclick="exportarCSV()"><i class="fa fa-file-csv me-1"></i>Exportar CSV</button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="section-card py-2">
+    <div class="row g-2 align-items-end">
+      <div class="col-auto">
+        <label class="form-label small mb-1">Partido / Movimiento</label>
+        <input type="text" id="f-partido" class="form-control form-control-sm" placeholder="Filtrar partido..." style="width:220px" oninput="filtrar()">
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Corporación</label>
+        <select id="f-corp" class="form-select form-select-sm" style="width:155px" onchange="filtrar()">
+          <option value="">Todas</option>
+          <option>Alcaldía</option><option>Concejo</option><option>Asamblea</option>
+          <option>Gobernación</option><option>JAL</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Departamento</label>
+        <select id="f-dpto" class="form-select form-select-sm" style="width:200px" onchange="recargar()">
+          <option value="">Todos</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Ordenar por</label>
+        <select id="f-orden" class="form-select form-select-sm" onchange="filtrar()">
+          <option value="neto_desc">Mayor Neto a Pagar</option>
+          <option value="liq_desc">Mayor Liquidación</option>
+          <option value="cne_desc">Mayor Pagado CNE</option>
+          <option value="votos_desc">Mayor Votos</option>
+          <option value="gastos_desc">Mayor Gastos</option>
+          <option value="partido_asc">Partido A→Z</option>
+        </select>
+      </div>
+      <div class="col-auto">
+        <label class="form-label small mb-1">Mostrar</label>
+        <select id="f-cne" class="form-select form-select-sm" style="width:160px" onchange="filtrar()">
+          <option value="">Todos</option>
+          <option value="con_pago">Con pago CNE</option>
+          <option value="sin_pago">Sin pago CNE</option>
+          <option value="con_votos">Con votos</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="row g-2 mb-3" id="kpis"></div>
+
+  <!-- Leyenda colores liquidación -->
+  <div class="mb-2 small text-muted">
+    <span class="text-danger fw-semibold me-3"><i class="fa fa-circle me-1"></i>Liquidación topada por Gastos</span>
+    <span class="text-info fw-semibold me-3"><i class="fa fa-circle me-1"></i>Liquidación topada por Valor Votos</span>
+    <span class="badge-pagado me-2">PAGADA</span> Resolución CNE emitida &nbsp;
+    <span class="badge-pendiente">PENDIENTE</span> Sin resolución aún
+  </div>
+
+  <!-- Tabla -->
+  <div class="section-card">
+    <div class="section-title"><i class="fa fa-table me-1 text-primary"></i>Resultados <span id="cnt-txt" class="text-muted fw-normal small"></span></div>
+    <div style="overflow-x:auto">
+      <table class="table table-sm table-hover table-bordered mb-0">
+        <thead class="table-dark">
+          <tr>
+            <th rowspan="2">#</th>
+            <th rowspan="2">Partido / Movimiento</th>
+            <th rowspan="2">Corp.</th>
+            <th rowspan="2">Dpto</th>
+            <th rowspan="2" class="text-end">Cands</th>
+            <th rowspan="2" class="text-end">Rad.</th>
+            <th rowspan="2" class="text-end">Votos</th>
+            <th rowspan="2" class="text-end">Gastos</th>
+            <th colspan="4" class="text-center text-warning" style="border-bottom:2px solid #ffd600">Estimado (Cálculo)</th>
+            <th colspan="3" class="text-center text-info" style="border-bottom:2px solid #00bcd4">Pagado CNE (reposicion.db)</th>
+          </tr>
+          <tr>
+            <th class="text-end">Valor Votos</th>
+            <th class="text-end">Liquidación</th>
+            <th class="text-end">Auditoría</th>
+            <th class="text-end text-warning">Neto Est.</th>
+            <th class="text-end text-info">Reconocido</th>
+            <th class="text-end text-info">Neto Pagado</th>
+            <th class="text-center">Estado</th>
+          </tr>
+        </thead>
+        <tbody id="tbody-liq"></tbody>
+      </table>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mt-2">
+      <small id="info-pag" class="text-muted"></small>
+      <div id="btns-pag" class="d-flex gap-1"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const CORP_COLOR = {
+  'Concejo':'primary','Alcaldía':'success','Asamblea':'warning',
+  'Gobernación':'danger','JAL':'info','Otro':'secondary'
+};
+const fmt  = n => (n!=null&&n>0) ? '$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0}) : '—';
+const fmtN = n => Number(n).toLocaleString('es-CO');
+
+let _todos    = [];
+let _filtrados= [];
+let _pagina   = 1;
+const PER_PAGE = 100;
+
+fetch('/api/cc_stats').then(r=>r.json()).then(d=>{
+  const dptos = Object.keys(d.por_dpto||{}).sort();
+  document.getElementById('f-dpto').innerHTML =
+    '<option value="">Todos</option>' + dptos.map(d=>`<option>${d}</option>`).join('');
+}).catch(()=>{});
+
+function recargar() {
+  const dpto = document.getElementById('f-dpto').value;
+  const bar  = document.getElementById('loading-bar');
+  bar.style.width = '30%';
+  _todos = []; _filtrados = [];
+  const cols = 13;
+  document.getElementById('tbody-liq').innerHTML =
+    `<tr><td colspan="${cols}" class="text-center text-muted py-4"><i class="fa fa-spinner fa-spin me-2"></i>Cargando...</td></tr>`;
+
+  fetch('/api/cc_liquidacion_partidos' + (dpto ? '?dpto='+encodeURIComponent(dpto) : ''))
+    .then(r => { bar.style.width='70%'; return r.json(); })
+    .then(d => {
+      bar.style.width='100%';
+      setTimeout(()=>bar.style.width='0%',400);
+      _todos = d.grupos || [];
+      _pagina = 1;
+      filtrar();
+    })
+    .catch(e => {
+      bar.style.width='0%';
+      document.getElementById('tbody-liq').innerHTML =
+        `<tr><td colspan="${cols}" class="text-center text-danger py-4">Error: ${e}</td></tr>`;
+    });
+}
+
+function filtrar() {
+  const qP  = (document.getElementById('f-partido').value||'').toUpperCase().trim();
+  const qC  = (document.getElementById('f-corp').value||'').toUpperCase().trim();
+  const qF  = document.getElementById('f-cne').value;
+  const ord = document.getElementById('f-orden').value;
+
+  _filtrados = _todos.filter(r => {
+    if (qP && !r.partido.toUpperCase().includes(qP)) return false;
+    if (qC && r.corp.toUpperCase() !== qC) return false;
+    if (qF === 'con_pago'  && r.cne_neto == null) return false;
+    if (qF === 'sin_pago'  && r.cne_neto != null) return false;
+    if (qF === 'con_votos' && !r.votos) return false;
+    return true;
+  });
+
+  if (ord === 'neto_desc')    _filtrados.sort((a,b)=>b.neto-a.neto);
+  else if (ord === 'liq_desc')    _filtrados.sort((a,b)=>b.liquidacion-a.liquidacion);
+  else if (ord === 'cne_desc')    _filtrados.sort((a,b)=>(b.cne_neto||0)-(a.cne_neto||0));
+  else if (ord === 'votos_desc')  _filtrados.sort((a,b)=>b.votos-a.votos);
+  else if (ord === 'gastos_desc') _filtrados.sort((a,b)=>b.gastos-a.gastos);
+  else if (ord === 'partido_asc') _filtrados.sort((a,b)=>a.partido.localeCompare(b.partido));
+
+  _pagina = 1;
+  renderKPIs();
+  renderTabla();
+}
+
+function renderKPIs() {
+  const totVotos = _filtrados.reduce((s,r)=>s+r.votos,0);
+  const totGas   = _filtrados.reduce((s,r)=>s+r.gastos,0);
+  const totLiq   = _filtrados.reduce((s,r)=>s+r.liquidacion,0);
+  const totNeto  = _filtrados.reduce((s,r)=>s+r.neto,0);
+  const totCNE   = _filtrados.reduce((s,r)=>s+(r.cne_neto||0),0);
+  const conPago  = _filtrados.filter(r=>r.cne_neto!=null).length;
+  document.getElementById('kpis').innerHTML = [
+    {icon:'fa-vote-yea',         val:fmtN(totVotos), lbl:'Total Votos',        cls:'kpi-teal'},
+    {icon:'fa-minus-circle',     val:fmt(totGas),    lbl:'Total Gastos',       cls:'kpi-red'},
+    {icon:'fa-balance-scale',    val:fmt(totLiq),    lbl:'Liquidación Est.',   cls:'kpi-purple'},
+    {icon:'fa-hand-holding-usd', val:fmt(totNeto),   lbl:'Neto Estimado',      cls:'kpi-green'},
+    {icon:'fa-university',       val:fmt(totCNE),    lbl:`Pagado CNE (${conPago} reg.)`, cls:'kpi-orange'},
+  ].map(k=>`<div class="col-6 col-md-2">
+    <div class="kpi-card ${k.cls}">
+      <div class="icon"><i class="fa ${k.icon}"></i></div>
+      <div><div class="val">${k.val}</div><div class="lbl">${k.lbl}</div></div>
+    </div></div>`).join('');
+}
+
+function renderTabla() {
+  const start = (_pagina-1)*PER_PAGE;
+  const page  = _filtrados.slice(start, start+PER_PAGE);
+  document.getElementById('cnt-txt').textContent = `(${fmtN(_filtrados.length)} filas)`;
+
+  document.getElementById('tbody-liq').innerHTML = page.map((r,i)=>{
+    const corpCls = CORP_COLOR[r.corp]||'secondary';
+    const liqCls  = r.liquidacion>0 && r.gastos>0 && r.liquidacion === r.gastos
+      ? 'text-danger' : 'text-info';
+    const liqTit  = r.liquidacion>0 && r.gastos>0 && r.liquidacion === r.gastos
+      ? 'Topado por Gastos' : 'Topado por Valor Votos';
+
+    let estadoBadge = '';
+    if (r.cne_neto != null) {
+      const pagado = (r.cne_estado||'').includes('PAGADA');
+      estadoBadge = pagado
+        ? `<span class="badge-pagado">PAGADA</span>`
+        : `<span class="badge-pendiente">PENDIENTE</span>`;
+      if (r.cne_resolucion) estadoBadge += `<br><small class="text-muted">Res.${r.cne_resolucion}</small>`;
+    }
+
+    return `<tr>
+      <td class="text-muted">${start+i+1}</td>
+      <td><a href="partido.html?p=${encodeURIComponent(r.partido)}" class="fw-semibold text-decoration-none">${r.partido}</a></td>
+      <td><span class="badge bg-${corpCls} badge-corp">${r.corp}</span></td>
+      <td class="small text-muted">${r.dpto||'—'}</td>
+      <td class="text-end">${fmtN(r.candidatos)}</td>
+      <td class="text-end">${r.radicaron>0?`<span class="text-success">${fmtN(r.radicaron)}</span>`:'<span class="text-muted">—</span>'}</td>
+      <td class="text-end">${r.votos>0?`<span class="text-primary fw-semibold">${fmtN(r.votos)}</span>`:'<span class="text-muted">—</span>'}</td>
+      <td class="text-end">${fmt(r.gastos)}</td>
+      <td class="text-end"><span class="text-secondary">${fmt(r.valor_votos)}</span></td>
+      <td class="text-end" title="${liqTit}"><span class="${liqCls} fw-semibold">${fmt(r.liquidacion)}</span></td>
+      <td class="text-end"><small class="text-muted">${fmt(r.auditoria)}</small></td>
+      <td class="text-end"><span class="text-warning fw-bold">${fmt(r.neto)}</span></td>
+      <td class="text-end"><span class="text-info fw-semibold">${fmt(r.cne_reconocido)}</span></td>
+      <td class="text-end"><span class="text-success fw-bold">${fmt(r.cne_neto)}</span></td>
+      <td class="text-center">${estadoBadge||'<span class="text-muted small">—</span>'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="15" class="text-center text-muted py-4">Sin resultados</td></tr>';
+
+  const total = _filtrados.length;
+  const pages = Math.ceil(total/PER_PAGE);
+  document.getElementById('info-pag').textContent =
+    `Mostrando ${Math.min(start+1,total)}–${Math.min(start+PER_PAGE,total)} de ${fmtN(total)}`;
+
+  const btns = document.getElementById('btns-pag');
+  btns.innerHTML = '';
+  if (pages > 1) {
+    const add = (lbl,p,act) => {
+      const b = document.createElement('button');
+      b.className = `btn btn-xs btn-${act?'primary':'outline-secondary'} py-0 px-2`;
+      b.style.fontSize = '.75rem';
+      b.textContent = lbl;
+      b.onclick = ()=>{ _pagina=p; renderTabla(); };
+      btns.appendChild(b);
+    };
+    if (_pagina>1) add('«',1); if (_pagina>2) add(_pagina-1,_pagina-1);
+    add(_pagina,_pagina,true);
+    if (_pagina<pages) add(_pagina+1,_pagina+1); if (_pagina<pages-1) add('»',pages);
+  }
+}
+
+function exportarCSV() {
+  const cols = ['#','Partido','Corporacion','Departamento','Candidatos','Radicaron','Votos',
+                 'Gastos','Valor_Votos','Liquidacion_Est','Auditoria_1pct','Neto_Est',
+                 'CNE_Reconocido','CNE_Neto_Pagado','CNE_Estado','CNE_Resolucion'];
+  const rows = _filtrados.map((r,i)=>[
+    i+1, r.partido, r.corp, r.dpto||'', r.candidatos, r.radicaron, r.votos,
+    r.gastos, r.valor_votos, r.liquidacion, r.auditoria, r.neto,
+    r.cne_reconocido??'', r.cne_neto??'', r.cne_estado??'', r.cne_resolucion??''
+  ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(','));
+  const csv = '\uFEFF' + cols.join(',') + '\n' + rows.join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = 'liquidacion_partidos_2023.csv';
+  a.click();
+}
+
+recargar();
+</script>
+</body>
+</html>

@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Análisis por Partido — Cuentas Claras CNE</title>
+<link rel="stylesheet" href="vendor/css/bootstrap.min.css">
+<link rel="stylesheet" href="vendor/css/all.min.css">
+<script src="vendor/js/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+body{background:#f4f6fb;font-family:'Segoe UI',sans-serif;font-size:.92rem}
+.navbar{background:linear-gradient(90deg,#003478,#1565c0);padding:.5rem 1.5rem}
+.navbar-brand{color:#fff!important;font-weight:700;font-size:1.1rem}
+.section-card{background:#fff;border-radius:12px;padding:1.2rem 1.4rem;margin-bottom:1.2rem;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.section-title{font-weight:700;font-size:.95rem;color:#003478;border-bottom:2px solid #ffd600;padding-bottom:.4rem;margin-bottom:.9rem}
+.kpi-card{border-radius:12px;padding:1rem 1.2rem;color:#fff;display:flex;align-items:center;gap:.8rem}
+.kpi-card .icon{font-size:1.6rem;opacity:.8}
+.kpi-card .val{font-size:1.4rem;font-weight:700;line-height:1}
+.kpi-card .lbl{font-size:.72rem;opacity:.85;text-transform:uppercase;letter-spacing:.05em}
+.kpi-blue{background:linear-gradient(135deg,#003478,#1565c0)}
+.kpi-green{background:linear-gradient(135deg,#1b5e20,#2e7d32)}
+.kpi-red{background:linear-gradient(135deg,#b71c1c,#c62828)}
+.kpi-purple{background:linear-gradient(135deg,#4a148c,#6a1b9a)}
+.badge-corp{font-size:.68rem;padding:.2rem .5rem;border-radius:20px}
+#loading{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(255,255,255,.9);z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:1rem}
+.partido-selector{background:#fff;border-radius:16px;padding:1.5rem 2rem;box-shadow:0 4px 20px rgba(0,0,0,.1);max-width:700px;margin:2rem auto}
+</style>
+</head>
+<body>
+
+<div id="loading" style="display:none">
+  <div class="spinner-border text-primary" style="width:3rem;height:3rem"></div>
+  <div class="text-muted">Cargando datos del partido...</div>
+</div>
+
+<nav class="navbar navbar-dark px-3 py-2">
+  <a class="navbar-brand" href="analisis_cc.html"><i class="fa fa-chart-bar me-2"></i>Cuentas Claras CNE</a>
+  <div class="ms-auto d-flex gap-2">
+    <a href="buscar.html" class="btn btn-outline-light btn-sm"><i class="fa fa-search me-1"></i>Buscar</a>
+    <a href="adriana.html" class="btn btn-outline-warning btn-sm"><i class="fa fa-arrow-left me-1"></i>Portal</a>
+  </div>
+</nav>
+
+<!-- Selector de partido -->
+<div class="partido-selector" id="selector-wrap">
+  <h5 class="fw-bold text-primary mb-1"><i class="fa fa-flag me-2"></i>Análisis por Partido / Movimiento</h5>
+  <p class="text-muted small mb-3">Vea todos los candidatos, gastos e ingresos de un partido en todo el país</p>
+  <div class="input-group">
+    <input type="text" id="p-input" class="form-control" placeholder="Ej: Partido Liberal, Centro Democrático..."
+      onkeydown="if(event.key==='Enter') cargarPartido()">
+    <button class="btn btn-primary" onclick="cargarPartido()"><i class="fa fa-search me-1"></i>Consultar</button>
+  </div>
+  <div id="sugerencias" class="mt-2"></div>
+</div>
+
+<div id="contenido-partido" style="display:none">
+  <div class="container-fluid px-3 py-2">
+
+    <!-- Encabezado partido -->
+    <div class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h4 class="mb-0 fw-bold text-primary" id="partido-titulo">—</h4>
+        <small class="text-muted" id="partido-subtitulo"></small>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-outline-success" onclick="exportarPartido()"><i class="fa fa-file-csv me-1"></i>Exportar CSV</button>
+        <button class="btn btn-sm btn-outline-secondary" onclick="location.href='partido.html'"><i class="fa fa-redo me-1"></i>Otro partido</button>
+      </div>
+    </div>
+
+    <!-- KPIs -->
+    <div class="row g-2 mb-3" id="kpi-partido"></div>
+
+    <!-- Gráficos: Corporaciones + Departamentos -->
+    <div class="row g-3 mb-3">
+      <div class="col-lg-5">
+        <div class="section-card h-100">
+          <div class="section-title"><i class="fa fa-building me-1 text-primary"></i>Candidatos por Corporación</div>
+          <div style="height:220px;position:relative"><canvas id="chart-corp"></canvas></div>
+        </div>
+      </div>
+      <div class="col-lg-7">
+        <div class="section-card h-100">
+          <div class="section-title"><i class="fa fa-map me-1 text-success"></i>Top 10 Departamentos con más candidatos</div>
+          <div style="height:220px;position:relative"><canvas id="chart-dpto"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tabla de candidatos -->
+    <div class="section-card">
+      <div class="section-title"><i class="fa fa-users me-2 text-primary"></i>Candidatos del partido</div>
+      <div class="row g-2 mb-2">
+        <div class="col-auto">
+          <input type="text" id="q-pcand" class="form-control form-control-sm" placeholder="Buscar candidato..." style="width:200px" oninput="filtrarPCand()">
+        </div>
+        <div class="col-auto">
+          <select id="fil-pdpto" class="form-select form-select-sm" style="width:180px" onchange="filtrarPCand()">
+            <option value="">Todos los departamentos</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <select id="fil-pcorp" class="form-select form-select-sm" style="width:160px" onchange="filtrarPCand()">
+            <option value="">Todas las corporaciones</option>
+            <option>Concejo</option><option>Alcaldía</option><option>Asamblea</option>
+            <option>Gobernación</option><option>JAL</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <select id="fil-porden" class="form-select form-select-sm" onchange="filtrarPCand()">
+            <option value="">Ordenar por nombre</option>
+            <option value="votos_desc">Mayor votos</option>
+            <option value="gasto_desc">Mayor gasto</option>
+            <option value="ingreso_desc">Mayor ingreso</option>
+            <option value="liq_desc">Mayor liquidación</option>
+            <option value="neto_desc">Mayor neto a pagar</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="table table-sm table-hover table-bordered">
+          <thead class="table-dark">
+            <tr><th>#</th><th>Nombre</th><th>Municipio</th><th>Departamento</th><th>Corporación</th>
+                <th>Radicó</th><th class="text-end">Votos</th><th class="text-end">Gastos</th>
+                <th class="text-end">Valor Votos</th><th class="text-end">Liquidación</th>
+                <th class="text-end">Auditoría 1%</th><th class="text-end">Neto a Pagar</th>
+                <th>Gerente Campaña</th><th>Contador</th></tr>
+          </thead>
+          <tbody id="tbody-pcand"></tbody>
+        </table>
+      </div>
+      <div id="pag-partido" class="d-flex justify-content-between align-items-center mt-1">
+        <small id="info-pcand" class="text-muted"></small>
+        <div id="btns-ppag" class="d-flex gap-1"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const CORP_COLOR = {
+  'Concejo':'primary','Alcaldía':'success','Asamblea':'warning',
+  'Gobernación':'danger','JAL':'info','Otro':'secondary'
+};
+const fmt  = n => n>0 ? '$'+Number(n).toLocaleString('es-CO',{maximumFractionDigits:0}) : '—';
+const fmtN = n => Number(n).toLocaleString('es-CO');
+
+// Tarifa por voto CNE 2023 según corporación
+const TARIFA_VOTO = {
+  'Alcaldía':2766,'Concejo':2766,'JAL':2766,
+  'Asamblea':4590,'Gobernación':4590
+};
+function calcLiquidacion(c) {
+  const tarifa    = TARIFA_VOTO[c.corp] || 2766;
+  const valorVotos = (c.votos || 0) * tarifa;
+  const gastos     = c.gasto || 0;
+  const liquidacion = Math.min(gastos, valorVotos);
+  const auditoria  = liquidacion * 0.01;
+  const neto       = liquidacion * 0.99;
+  return { tarifa, valorVotos, liquidacion, auditoria, neto };
+}
+
+let _pcands    = [];
+let _pfiltrados= [];
+let _ppag      = 1;
+const PER_PAGE = 50;
+let _chartCorp = null, _chartDpto = null;
+let _partidoActual = '';
+
+// Cargar lista de partidos para sugerencias
+fetch('/api/cc_stats').then(r=>r.json()).then(d=>{
+  const partidos = d.por_partido ? Object.keys(d.por_partido).sort() : [];
+  const input = document.getElementById('p-input');
+  const sug   = document.getElementById('sugerencias');
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toUpperCase();
+    if (!q || q.length < 2) { sug.innerHTML=''; return; }
+    const matches = partidos.filter(p => p.toUpperCase().includes(q)).slice(0,8);
+    sug.innerHTML = matches.map(p =>
+      `<button class="btn btn-sm btn-outline-secondary me-1 mb-1" onclick="selPartido('${p.replace(/'/g,"\\'")}')">
+        ${p}
+      </button>`).join('');
+  });
+}).catch(()=>{});
+
+// Cargar desde URL
+const urlP = new URLSearchParams(location.search).get('p');
+if (urlP) {
+  document.getElementById('p-input').value = urlP;
+  cargarPartido();
+}
+
+function selPartido(p) {
+  document.getElementById('p-input').value = p;
+  cargarPartido();
+}
+
+function cargarPartido() {
+  const partido = document.getElementById('p-input').value.trim();
+  if (!partido) return;
+  _partidoActual = partido;
+
+  document.getElementById('loading').style.display = 'flex';
+  document.getElementById('contenido-partido').style.display = 'none';
+
+  fetch('/api/cc_partido?partido=' + encodeURIComponent(partido) + '&limit=2000')
+    .then(r => r.json())
+    .then(d => {
+      document.getElementById('loading').style.display = 'none';
+      if (!d.total) {
+        document.getElementById('selector-wrap').innerHTML +=
+          `<div class="alert alert-warning mt-2">No se encontró el partido <strong>"${partido}"</strong>. Verifique el nombre exacto.</div>`;
+        return;
+      }
+      renderPartido(d);
+    })
+    .catch(e => {
+      document.getElementById('loading').style.display = 'none';
+      alert('Error: ' + e);
+    });
+}
+
+function renderPartido(d) {
+  document.getElementById('selector-wrap').style.display = 'none';
+  document.getElementById('contenido-partido').style.display = '';
+  document.title = d.partido + ' — Cuentas Claras';
+
+  document.getElementById('partido-titulo').textContent = d.partido;
+  document.getElementById('partido-subtitulo').textContent =
+    `${fmtN(d.total)} candidatos en ${Object.keys(d.por_dpto||{}).length} departamentos`;
+
+  // KPIs
+  const cands = d.candidatos || [];
+  let totalLiq = 0, totalNeto = 0;
+  cands.forEach(c => { const lq = calcLiquidacion(c); totalLiq += lq.liquidacion; totalNeto += lq.neto; });
+  document.getElementById('kpi-partido').innerHTML = [
+    {icon:'fa-users',        val:fmtN(d.total),           lbl:'Candidatos',       cls:'kpi-blue'},
+    {icon:'fa-check',        val:fmtN(cands.filter(c=>c.radico).length), lbl:'Radicaron', cls:'kpi-green'},
+    {icon:'fa-minus-circle', val:fmt(d.total_gasto),      lbl:'Total Gastos',     cls:'kpi-red'},
+    {icon:'fa-balance-scale',val:fmt(totalLiq),           lbl:'Total Liquidación',cls:'kpi-purple'},
+    {icon:'fa-hand-holding-usd',val:fmt(totalNeto),       lbl:'Neto a Pagar',     cls:'kpi-green'},
+  ].map(k=>`<div class="col-6 col-md-${k.cls==='kpi-green'&&k.lbl==='Neto a Pagar'?'3':'3'}">
+    <div class="kpi-card ${k.cls}">
+      <div class="icon"><i class="fa ${k.icon}"></i></div>
+      <div><div class="val">${k.val}</div><div class="lbl">${k.lbl}</div></div>
+    </div></div>`).join('');
+
+  // Chart corporaciones
+  const corpData = d.por_corp || {};
+  const corpKeys = Object.keys(corpData).sort((a,b)=>corpData[b]-corpData[a]);
+  if (_chartCorp) _chartCorp.destroy();
+  _chartCorp = new Chart(document.getElementById('chart-corp'), {
+    type: 'doughnut',
+    data: {
+      labels: corpKeys,
+      datasets:[{data: corpKeys.map(k=>corpData[k]),
+        backgroundColor:['#003478','#1565c0','#ffd600','#d32f2f','#00838f','#6a1b9a','#2e7d32']}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}
+  });
+
+  // Chart departamentos top 10
+  const dptoData = d.por_dpto || {};
+  const dptoKeys = Object.keys(dptoData).sort((a,b)=>dptoData[b]-dptoData[a]).slice(0,10);
+  if (_chartDpto) _chartDpto.destroy();
+  _chartDpto = new Chart(document.getElementById('chart-dpto'), {
+    type:'bar',
+    data:{
+      labels: dptoKeys,
+      datasets:[{label:'Candidatos',data:dptoKeys.map(k=>dptoData[k]),
+        backgroundColor:'#1565c0',borderRadius:4}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{ticks:{font:{size:10}}},y:{beginAtZero:true}}}
+  });
+
+  // Poblar filtro dptos
+  const dptos = Object.keys(dptoData).sort();
+  document.getElementById('fil-pdpto').innerHTML =
+    '<option value="">Todos los departamentos</option>' +
+    dptos.map(d=>`<option>${d}</option>`).join('');
+
+  _pcands = d.candidatos || [];
+  _pfiltrados = _pcands.slice();
+  _ppag = 1;
+  renderPCand();
+}
+
+function filtrarPCand() {
+  const q    = document.getElementById('q-pcand').value.trim().toUpperCase();
+  const dpto = document.getElementById('fil-pdpto').value.toUpperCase();
+  const corp = document.getElementById('fil-pcorp').value.toUpperCase();
+  const ord  = document.getElementById('fil-porden').value;
+
+  _pfiltrados = _pcands.filter(c => {
+    if (q    && !c.nombre?.toUpperCase().includes(q) && !c.mun?.toUpperCase().includes(q)) return false;
+    if (dpto && c.dpto?.toUpperCase() !== dpto) return false;
+    if (corp && c.corp?.toUpperCase() !== corp) return false;
+    return true;
+  });
+  if (ord === 'votos_desc')   _pfiltrados.sort((a,b)=>(b.votos||0)-(a.votos||0));
+  if (ord === 'gasto_desc')   _pfiltrados.sort((a,b)=>(b.gasto||0)-(a.gasto||0));
+  if (ord === 'ingreso_desc') _pfiltrados.sort((a,b)=>(b.ingreso||0)-(a.ingreso||0));
+  if (ord === 'liq_desc')     _pfiltrados.sort((a,b)=>calcLiquidacion(b).liquidacion-calcLiquidacion(a).liquidacion);
+  if (ord === 'neto_desc')    _pfiltrados.sort((a,b)=>calcLiquidacion(b).neto-calcLiquidacion(a).neto);
+  _ppag = 1;
+  renderPCand();
+}
+
+function renderPCand() {
+  const start = (_ppag-1)*PER_PAGE;
+  const page  = _pfiltrados.slice(start, start+PER_PAGE);
+  document.getElementById('tbody-pcand').innerHTML = page.map((c,i)=>{
+    const corpCls = CORP_COLOR[c.corp]||'secondary';
+    const rad = c.radico ? '<span class="badge bg-success">Sí</span>' : '<span class="badge bg-danger">No</span>';
+    const vot = c.votos>0   ? `<span class="text-primary fw-semibold">${Number(c.votos).toLocaleString('es-CO')}</span>` : '<span class="text-muted">—</span>';
+    const gas = c.gasto>0   ? `<span class="text-danger fw-semibold">${fmt(c.gasto)}</span>`   : '<span class="text-muted">—</span>';
+    const ger = c.gerente_nombre ? `<small>${c.gerente_nombre}</small>` : '<span class="text-muted small">—</span>';
+    const cont= c.contador_nombre? `<small>${c.contador_nombre}</small>`:'<span class="text-muted small">—</span>';
+    const lq = calcLiquidacion(c);
+    const valVot = lq.valorVotos>0 ? `<span class="text-info">${fmt(lq.valorVotos)}</span>` : '<span class="text-muted">—</span>';
+    const liqTxt = lq.liquidacion>0 ? `<span class="text-warning fw-semibold">${fmt(lq.liquidacion)}</span>` : '<span class="text-muted">—</span>';
+    const audTxt = lq.auditoria>0 ? `<small class="text-danger">${fmt(lq.auditoria)}</small>` : '<span class="text-muted">—</span>';
+    const netoTxt= lq.neto>0 ? `<span class="text-success fw-semibold">${fmt(lq.neto)}</span>` : '<span class="text-muted">—</span>';
+    return `<tr>
+      <td class="text-muted">${start+i+1}</td>
+      <td><strong>${c.nombre||'—'}</strong></td>
+      <td><a href="detalle_dpto.html?dpto=${encodeURIComponent(c.dpto)}" class="text-decoration-none">${c.mun||'—'}</a></td>
+      <td>${c.dpto||'—'}</td>
+      <td><span class="badge bg-${corpCls} badge-corp">${c.corp||'—'}</span></td>
+      <td>${rad}</td>
+      <td class="text-end">${vot}</td>
+      <td class="text-end">${gas}</td>
+      <td class="text-end">${valVot}</td>
+      <td class="text-end">${liqTxt}</td>
+      <td class="text-end">${audTxt}</td>
+      <td class="text-end">${netoTxt}</td>
+      <td>${ger}</td>
+      <td>${cont}</td>
+    </tr>`;
+  }).join('');
+
+  const total = _pfiltrados.length;
+  const pages = Math.ceil(total/PER_PAGE);
+  document.getElementById('info-pcand').textContent =
+    `Mostrando ${Math.min(start+1,total)}–${Math.min(start+PER_PAGE,total)} de ${fmtN(total)} candidatos`;
+
+  const btns = document.getElementById('btns-ppag');
+  btns.innerHTML = '';
+  if (pages > 1) {
+    const add = (lbl, p, act) => {
+      const b = document.createElement('button');
+      b.className = `btn btn-xs btn-${act?'primary':'outline-secondary'} py-0 px-2`;
+      b.style.fontSize = '.75rem';
+      b.textContent = lbl;
+      b.onclick = () => { _ppag = p; renderPCand(); };
+      btns.appendChild(b);
+    };
+    if (_ppag>1) add('«',1); if (_ppag>2) add(_ppag-1,_ppag-1);
+    add(_ppag,_ppag,true);
+    if (_ppag<pages) add(_ppag+1,_ppag+1); if (_ppag<pages-1) add('»',pages);
+  }
+}
+
+function exportarPartido() {
+  const cols = ['#','Nombre','Cedula','Partido','Municipio','Departamento','Corporacion',
+                 'Radico','Votos','Gastos','Valor_Votos','Liquidacion','Auditoria_1pct','Neto_a_Pagar',
+                 'Gerente','Contador'];
+  const rows = _pfiltrados.map((c,i) => {
+    const lq = calcLiquidacion(c);
+    return [
+      i+1, c.nombre||'', c.cedula||'', _partidoActual,
+      c.mun||'', c.dpto||'', c.corp||'', c.radico?'Si':'No',
+      c.votos||0, c.gasto||0,
+      Math.round(lq.valorVotos), Math.round(lq.liquidacion),
+      Math.round(lq.auditoria), Math.round(lq.neto),
+      c.gerente_nombre||'', c.contador_nombre||''
+    ].map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',');
+  });
+  const csv = '\uFEFF' + cols.join(',') + '\n' + rows.join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `partido_${_partidoActual.replace(/\s/g,'_').substring(0,30)}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>

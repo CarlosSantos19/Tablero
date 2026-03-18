@@ -1,0 +1,20 @@
+# Datos muy pesados — se excluyen del repo
+data/candidatos_cc/
+data/candidatos_mun/
+data/*.db
+data/*.db.gz
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.cpython-*.pyc
+
+# Logs
+*.log
+*_log.txt
+*_out.txt
+
+# Windows
+Thumbs.db
+desktop.ini
