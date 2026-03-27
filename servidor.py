@@ -1401,6 +1401,14 @@ class Handler(SimpleHTTPRequestHandler):
                 data["total_ingresos"] = round(total_ingresos, 2)
                 data["total_gastos"]   = round(total_gastos,   2)
                 data["total_reportaron"] = reportaron
+            # Total pagos ET2023 desde pagostres.db
+            db_path = os.path.join(portal_dir, "data", "pagostres.db")
+            if os.path.exists(db_path):
+                import sqlite3 as _sq
+                con = _sq.connect(db_path)
+                row = con.execute("SELECT SUM(VALOR_NETO_GIRADO) FROM pagos_elecciones").fetchone()
+                con.close()
+                data["total_pagos_et2023"] = round(row[0] or 0, 2)
             self._send_json(data)
         except Exception as e:
             self._send_error_json(str(e))

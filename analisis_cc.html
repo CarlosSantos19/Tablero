@@ -166,6 +166,13 @@ body{background:#f0f4f8;font-size:.88rem;}
         <div class="lbl">Total Gastos Colombia</div>
       </div>
     </div>
+    <div class="col-6 col-md-6 col-lg-3">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#4a148c,#7b1fa2)">
+        <div class="icon"><i class="fa fa-money-bill-wave"></i></div>
+        <div class="val" id="kpi-pagos">—</div>
+        <div class="lbl">Total Pagos ET2023</div>
+      </div>
+    </div>
   </div>
 
   <!-- Alertas -->
@@ -447,6 +454,7 @@ function renderTodo(d){
   // Ingresos y gastos totales Colombia
   document.getElementById('kpi-ingresos').textContent = d.total_ingresos > 0 ? fmtCOP(d.total_ingresos) : '—';
   document.getElementById('kpi-gastos').textContent   = d.total_gastos   > 0 ? fmtCOP(d.total_gastos)   : '—';
+  document.getElementById('kpi-pagos').textContent    = d.total_pagos_et2023 > 0 ? fmtCOP(d.total_pagos_et2023) : '—';
   if(d._generado) document.getElementById('nav-generado').textContent='Generado: '+d._generado;
 
   // Alertas
