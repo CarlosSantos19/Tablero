@@ -2,114 +2,263 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Pagos por Partido — FNFPCE</title>
-  <link rel="stylesheet" href="css/estilos.css"/>
+  <link rel="stylesheet" href="vendor/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="css/cne-theme.css"/>
+  <link rel="stylesheet" href="vendor/css/all.min.css"/>
   <style>
-    body { font-family:'Segoe UI',sans-serif; background:#f4f6fb; margin:0; }
-    .top-bar { background:#003893; color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px; }
-    .top-bar a { color:#FCD116; text-decoration:none; font-size:13px; }
-    .top-bar h1 { margin:0; font-size:17px; flex:1; }
-    .container { max-width:1200px; margin:0 auto; padding:24px 16px; }
+    .kpi-card { border-radius:12px; padding:.9rem 1.1rem; color:#fff; display:flex; align-items:center; gap:.8rem; }
+    .kpi-card .icon { font-size:1.4rem; opacity:.8; }
+    .kpi-card .val  { font-size:1.15rem; font-weight:700; line-height:1; }
+    .kpi-card .lbl  { font-size:.66rem; opacity:.85; text-transform:uppercase; letter-spacing:.05em; }
+    .kpi-blue   { background:linear-gradient(135deg,#003478,#1565c0); }
+    .kpi-red    { background:linear-gradient(135deg,#b71c1c,#c62828); }
+    .kpi-green  { background:linear-gradient(135deg,#1b5e20,#2e7d32); }
+    .kpi-purple { background:linear-gradient(135deg,#4a148c,#6a1b9a); }
+    .kpi-teal   { background:linear-gradient(135deg,#00695c,#00897b); }
 
-    /* Resumen cards */
-    .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:24px; }
-    .sum-card { background:#fff; border-radius:8px; padding:18px; box-shadow:0 1px 4px rgba(0,0,0,.1); }
-    .sum-card .lbl { font-size:11px; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
-    .sum-card .val { font-size:20px; font-weight:700; color:#003893; }
-    .sum-card .val.green { color:#1a7a4a; }
-    .sum-card .val.red   { color:#c0392b; }
+    .section-card {
+      background:rgba(4,20,50,.85);
+      border:1px solid rgba(252,209,22,.18);
+      border-radius:12px;
+      padding:1.2rem 1.4rem;
+      margin-bottom:1.2rem;
+    }
+    .section-title {
+      font-family:'Orbitron',monospace;
+      font-size:.78rem;
+      font-weight:700;
+      color:#FCD116;
+      border-bottom:1px solid rgba(252,209,22,.22);
+      padding-bottom:.4rem;
+      margin-bottom:.9rem;
+      letter-spacing:.08em;
+    }
 
     /* Filtros */
-    .filtros { background:#fff; border-radius:8px; padding:16px; box-shadow:0 1px 4px rgba(0,0,0,.08); margin-bottom:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
-    .filtros label { font-size:12px; color:#555; display:flex; flex-direction:column; gap:4px; min-width:180px; }
-    .filtros input, .filtros select { padding:8px 10px; border:1px solid #d0d7e2; border-radius:5px; font-size:13px; }
-    .btn-filtrar { background:#003893; color:#fff; border:none; padding:9px 20px; border-radius:5px; cursor:pointer; font-size:13px; }
-    .btn-filtrar:hover { background:#002570; }
-    .btn-limpiar { background:#f0f0f0; color:#333; border:none; padding:9px 16px; border-radius:5px; cursor:pointer; font-size:13px; }
+    .form-control, .form-select {
+      background:rgba(4,20,50,.9) !important;
+      border:1px solid rgba(252,209,22,.25) !important;
+      color:#e0f4ff !important;
+      font-size:.82rem;
+    }
+    .form-control::placeholder { color:rgba(224,244,255,.4) !important; }
+    .form-control:focus, .form-select:focus {
+      border-color:rgba(252,209,22,.55) !important;
+      box-shadow:0 0 0 .15rem rgba(252,209,22,.15) !important;
+    }
+    .form-select option { background:#04101e; }
 
     /* Toggle vista */
-    .vista-toggle { display:flex; gap:8px; margin-bottom:14px; }
-    .btn-vista { background:#eef1f7; border:1px solid #d0d7e2; padding:7px 16px; border-radius:5px; cursor:pointer; font-size:12px; color:#444; }
-    .btn-vista.active { background:#003893; color:#fff; border-color:#003893; }
+    .btn-vista {
+      background:rgba(4,20,50,.8);
+      border:1px solid rgba(252,209,22,.25);
+      color:rgba(224,244,255,.7);
+      font-size:.78rem;
+      padding:.45rem 1rem;
+      border-radius:5px;
+      cursor:pointer;
+      transition:all .2s;
+    }
+    .btn-vista:hover { border-color:rgba(252,209,22,.5); color:#FCD116; }
+    .btn-vista.active {
+      background:rgba(252,209,22,.18);
+      border-color:#FCD116;
+      color:#FCD116;
+      font-weight:600;
+    }
 
     /* Tabla */
-    .tabla-wrap { background:#fff; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:auto; }
-    table { width:100%; border-collapse:collapse; font-size:13px; }
-    thead th { background:#003893; color:#fff; padding:10px 12px; text-align:left; white-space:nowrap; position:sticky; top:0; }
-    tbody tr:hover { background:#f0f4ff; }
-    tbody td { padding:9px 12px; border-bottom:1px solid #eef0f5; }
+    #tabla { font-size:.8rem; }
+    #tabla thead th {
+      background:rgba(0,56,147,.55) !important;
+      color:#FCD116 !important;
+      border-bottom:1px solid rgba(252,209,22,.3) !important;
+      white-space:nowrap;
+      font-family:'Orbitron',monospace;
+      font-size:.68rem;
+      letter-spacing:.04em;
+      padding:.65rem .75rem;
+      position:sticky;
+      top:0;
+    }
+    #tabla tbody tr { border-bottom:1px solid rgba(252,209,22,.07); }
+    #tabla tbody tr:hover { background:rgba(0,56,147,.25) !important; }
+    #tabla tbody td { padding:.6rem .75rem; color:#e0f4ff; vertical-align:middle; }
+    #tabla tfoot td {
+      background:rgba(0,56,147,.35) !important;
+      color:#FCD116 !important;
+      font-weight:700;
+      border-top:1px solid rgba(252,209,22,.3) !important;
+      font-size:.82rem;
+    }
+
     .money { text-align:right; font-variant-numeric:tabular-nums; }
-    .money.rec  { color:#1565c0; font-weight:600; }
-    .money.aud  { color:#c0392b; }
-    .money.neto { color:#1a7a4a; font-weight:700; }
-    .partido-badge { display:inline-block; background:#eef1f7; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; color:#003893; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .spinner { text-align:center; padding:40px; color:#888; }
-    .error-msg { color:#c0392b; padding:20px; text-align:center; }
-    tfoot td { background:#f8f9fc; font-weight:700; border-top:2px solid #d0d7e2; }
+    .money.rec  { color:#64b5f6; font-weight:600; }
+    .money.aud  { color:#ef9a9a; }
+    .money.neto { color:#a5d6a7; font-weight:700; }
+
+    .partido-badge {
+      display:inline-block;
+      background:rgba(0,56,147,.45);
+      border:1px solid rgba(252,209,22,.2);
+      border-radius:4px;
+      padding:2px 8px;
+      font-size:.72rem;
+      font-weight:600;
+      color:#FCD116;
+      max-width:260px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .corp-badge {
+      display:inline-block;
+      background:rgba(0,56,147,.3);
+      border:1px solid rgba(100,181,246,.2);
+      border-radius:10px;
+      padding:1px 7px;
+      font-size:.7rem;
+      color:#90caf9;
+    }
+    .res-badge {
+      display:inline-block;
+      background:rgba(252,209,22,.1);
+      border:1px solid rgba(252,209,22,.25);
+      border-radius:4px;
+      padding:1px 6px;
+      font-size:.72rem;
+      color:#FCD116;
+      font-weight:600;
+    }
+
+    .spinner-wrap { text-align:center; padding:3rem; color:rgba(224,244,255,.5); }
+    .error-msg { color:#ef9a9a; padding:1.5rem; text-align:center; }
+
+    #loading-bar { height:2px; background:#FCD116; position:fixed; top:0; left:0; transition:width .3s; z-index:9999; }
+
+    .tabla-wrap { overflow-x:auto; border-radius:8px; border:1px solid rgba(252,209,22,.12); }
+    .row-num { color:rgba(224,244,255,.35); font-size:.72rem; }
   </style>
 </head>
 <body>
+<div id="loading-bar" style="width:0%"></div>
 
-<div class="top-bar">
-  <a href="javascript:history.back()">← Volver</a>
-  <h1>💰 Pagos por Partido / Movimiento</h1>
-  <span style="font-size:12px;opacity:.8">Fuente: pagostres.db</span>
-</div>
+<nav class="navbar navbar-dark px-3 py-2">
+  <a class="navbar-brand" href="javascript:history.back()">
+    <i class="fa fa-arrow-left me-2"></i>Pagos por Partido
+  </a>
+  <span class="navbar-text ms-auto">
+    <i class="fa fa-database me-1"></i>pagostres.db &nbsp;·&nbsp; ET2023
+  </span>
+</nav>
 
-<div class="container">
+<div class="container-fluid px-3 py-3">
 
-  <!-- Resumen global -->
-  <div class="summary-grid" id="summary-grid">
-    <div class="sum-card"><div class="lbl">Partidos / Movimientos</div><div class="val" id="sum-partidos">—</div></div>
-    <div class="sum-card"><div class="lbl">Total Reconocido</div><div class="val" id="sum-reconocido">—</div></div>
-    <div class="sum-card"><div class="lbl">Total Auditoría</div><div class="val red" id="sum-auditoria">—</div></div>
-    <div class="sum-card"><div class="lbl">Total Neto Girado</div><div class="val green" id="sum-neto">—</div></div>
-    <div class="sum-card"><div class="lbl">Registros</div><div class="val" id="sum-registros">—</div></div>
+  <!-- KPI cards -->
+  <div class="row g-2 mb-3" id="kpi-row">
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-purple h-100">
+        <div class="icon"><i class="fa fa-flag"></i></div>
+        <div><div class="val" id="sum-partidos">—</div><div class="lbl">Partidos / Movimientos</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-blue h-100">
+        <div class="icon"><i class="fa fa-check-circle"></i></div>
+        <div><div class="val" id="sum-reconocido">—</div><div class="lbl">Total Reconocido</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-red h-100">
+        <div class="icon"><i class="fa fa-search-minus"></i></div>
+        <div><div class="val" id="sum-auditoria">—</div><div class="lbl">Total Auditoría</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-green h-100">
+        <div class="icon"><i class="fa fa-money-bill-wave"></i></div>
+        <div><div class="val" id="sum-neto">—</div><div class="lbl">Total Neto Girado</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-teal h-100">
+        <div class="icon"><i class="fa fa-list-ol"></i></div>
+        <div><div class="val" id="sum-registros">—</div><div class="lbl">Registros</div></div>
+      </div>
+    </div>
   </div>
 
   <!-- Filtros -->
-  <div class="filtros">
-    <label>Partido / Movimiento
-      <input type="text" id="f-partido" placeholder="Ej: CONSERVADOR" />
-    </label>
-    <label>Corporación
-      <select id="f-corp">
-        <option value="">Todas</option>
-        <option>ALCALDIA</option><option>CONCEJO</option><option>ASAMBLEA</option>
-        <option>GOBERNACION</option><option>JAL</option>
-      </select>
-    </label>
-    <label>Departamento
-      <input type="text" id="f-dpto" placeholder="Ej: CUNDINAMARCA" />
-    </label>
-    <button class="btn-filtrar" onclick="cargar()">Filtrar</button>
-    <button class="btn-limpiar" onclick="limpiar()">Limpiar</button>
+  <div class="section-card">
+    <div class="section-title"><i class="fa fa-filter me-2"></i>Filtros</div>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" style="color:rgba(224,244,255,.6)">Partido / Movimiento</label>
+        <input type="text" class="form-control form-control-sm" id="f-partido" placeholder="Ej: CONSERVADOR"/>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1" style="color:rgba(224,244,255,.6)">Corporación</label>
+        <select class="form-select form-select-sm" id="f-corp">
+          <option value="">Todas</option>
+          <option>ALCALDIA</option><option>CONCEJO</option><option>ASAMBLEA</option>
+          <option>GOBERNACION</option><option>JAL</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <label class="form-label small mb-1" style="color:rgba(224,244,255,.6)">Departamento</label>
+        <input type="text" class="form-control form-control-sm" id="f-dpto" placeholder="Ej: CUNDINAMARCA"/>
+      </div>
+      <div class="col-12 col-md-2 d-flex gap-2">
+        <button class="btn btn-sm btn-warning fw-bold flex-fill" onclick="cargar()">
+          <i class="fa fa-search me-1"></i>Filtrar
+        </button>
+        <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="limpiar()">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Toggle vista -->
-  <div class="vista-toggle">
-    <button class="btn-vista active" id="btn-agrupado"    onclick="setVista('agrupado')">Por Partido (total)</button>
-    <button class="btn-vista"        id="btn-detalle"     onclick="setVista('detalle')">Por Corp / Dpto</button>
-    <button class="btn-vista"        id="btn-individual"  onclick="setVista('individual')">📋 Detalle completo</button>
+  <div class="d-flex gap-2 mb-2 flex-wrap">
+    <button class="btn-vista active" id="btn-agrupado"   onclick="setVista('agrupado')">
+      <i class="fa fa-layer-group me-1"></i>Por Partido (total)
+    </button>
+    <button class="btn-vista" id="btn-detalle"           onclick="setVista('detalle')">
+      <i class="fa fa-sitemap me-1"></i>Por Corp / Dpto
+    </button>
+    <button class="btn-vista" id="btn-individual"        onclick="setVista('individual')">
+      <i class="fa fa-list me-1"></i>Detalle completo
+    </button>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <button class="btn btn-sm btn-outline-success" onclick="exportarCSV()" title="Exportar CSV">
+        <i class="fa fa-file-csv me-1"></i>CSV
+      </button>
+    </div>
   </div>
 
   <!-- Tabla -->
-  <div class="tabla-wrap">
-    <div class="spinner" id="spinner">Cargando datos…</div>
+  <div class="section-card p-0">
+    <div class="spinner-wrap" id="spinner">
+      <div class="spinner-border text-warning mb-2" style="width:2rem;height:2rem"></div>
+      <div>Cargando datos…</div>
+    </div>
     <div class="error-msg" id="error-msg" style="display:none"></div>
-    <table id="tabla" style="display:none">
-      <thead id="thead"></thead>
-      <tbody id="tbody"></tbody>
-      <tfoot id="tfoot"></tfoot>
-    </table>
+    <div class="tabla-wrap" id="tabla-wrap" style="display:none">
+      <table class="table table-borderless mb-0" id="tabla">
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+        <tfoot id="tfoot"></tfoot>
+      </table>
+    </div>
   </div>
 
 </div>
 
 <script>
-const API = '';
-let vista = 'agrupado'; // 'agrupado' | 'detalle' | 'individual'
+let vista = 'agrupado';
 let datos = [];
 
 function fmt(n) {
@@ -131,10 +280,15 @@ function limpiar() {
   cargar();
 }
 
+function setBar(pct) {
+  document.getElementById('loading-bar').style.width = pct + '%';
+}
+
 async function cargar() {
-  document.getElementById('spinner').style.display = '';
-  document.getElementById('tabla').style.display   = 'none';
-  document.getElementById('error-msg').style.display = 'none';
+  setBar(20);
+  document.getElementById('spinner').style.display    = '';
+  document.getElementById('tabla-wrap').style.display = 'none';
+  document.getElementById('error-msg').style.display  = 'none';
 
   const p = document.getElementById('f-partido').value.trim();
   const c = document.getElementById('f-corp').value.trim();
@@ -146,13 +300,18 @@ async function cargar() {
     (d ? `&dpto=${encodeURIComponent(d)}` : '');
 
   try {
+    setBar(55);
     const res  = await fetch(url);
     const data = await res.json();
     if (data.error) throw new Error(data.error);
     datos = data;
+    setBar(85);
     renderTabla(data);
     renderSummary(data);
+    setBar(100);
+    setTimeout(() => setBar(0), 600);
   } catch(e) {
+    setBar(0);
     document.getElementById('spinner').style.display   = 'none';
     document.getElementById('error-msg').style.display = '';
     document.getElementById('error-msg').textContent   = 'Error: ' + e.message;
@@ -169,7 +328,7 @@ function renderSummary(data) {
   document.getElementById('sum-reconocido').textContent = fmt(totRec);
   document.getElementById('sum-auditoria').textContent  = fmt(totAud);
   document.getElementById('sum-neto').textContent       = fmt(totNet);
-  document.getElementById('sum-registros').textContent  = totReg;
+  document.getElementById('sum-registros').textContent  = totReg.toLocaleString();
 }
 
 function renderTabla(data) {
@@ -179,99 +338,133 @@ function renderTabla(data) {
 
   if (vista === 'individual') {
     thead.innerHTML = `<tr>
-      <th>#</th><th>Partido / Movimiento</th><th>Corporación</th><th>Departamento</th><th>Municipio</th>
+      <th>#</th>
+      <th>Partido / Movimiento</th>
+      <th>Corporación</th>
+      <th>Departamento</th>
+      <th>Municipio</th>
       <th class="money">Valor Reconocido</th>
       <th class="money">Auditoría</th>
       <th class="money">Neto Girado</th>
-      <th>Res. Reconocimiento</th><th>Fecha Reconoc.</th>
-      <th>Res. Pago</th><th>Fecha Pago</th>
+      <th>Res. Reconocim.</th>
+      <th>Fecha Reconoc.</th>
+      <th>Res. Pago</th>
+      <th>Fecha Pago</th>
     </tr>`;
     tbody.innerHTML = data.map((r,i) => `<tr>
-      <td>${i+1}</td>
+      <td class="row-num">${i+1}</td>
       <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
-      <td>${r.corp||''}</td>
-      <td><strong>${r.dpto||''}</strong></td>
-      <td style="font-size:11px;color:#666">${r.municipio||''}</td>
+      <td><span class="corp-badge">${r.corp||''}</span></td>
+      <td style="font-weight:600">${r.dpto||''}</td>
+      <td style="font-size:.72rem;color:rgba(224,244,255,.55)">${r.municipio||''}</td>
       <td class="money rec">${fmt(r.val_reconocido)}</td>
       <td class="money aud">${fmt(r.val_auditoria)}</td>
       <td class="money neto">${fmt(r.val_neto)}</td>
-      <td style="font-size:11px">${r.res_reconocimiento||'—'}</td>
-      <td style="font-size:11px">${r.fecha_reconocimiento||'—'}</td>
-      <td style="font-size:11px"><strong>${r.res_pago||'—'}</strong></td>
-      <td style="font-size:11px"><strong>${r.fecha_pago||'—'}</strong></td>
+      <td>${r.res_reconocimiento ? `<span class="res-badge">${r.res_reconocimiento}</span>` : '—'}</td>
+      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.fecha_reconocimiento||'—'}</td>
+      <td>${r.res_pago ? `<span class="res-badge">${r.res_pago}</span>` : '—'}</td>
+      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.fecha_pago||'—'}</td>
     </tr>`).join('');
     const totRec = data.reduce((s,r)=>s+(r.val_reconocido||0),0);
     const totAud = data.reduce((s,r)=>s+(r.val_auditoria||0),0);
     const totNet = data.reduce((s,r)=>s+(r.val_neto||0),0);
     tfoot.innerHTML = `<tr>
-      <td colspan="5">TOTAL (${data.length} registros)</td>
+      <td colspan="5">TOTAL — ${data.length.toLocaleString()} registros</td>
       <td class="money rec">${fmt(totRec)}</td>
       <td class="money aud">${fmt(totAud)}</td>
       <td class="money neto">${fmt(totNet)}</td>
       <td colspan="4"></td>
     </tr>`;
-    document.getElementById('spinner').style.display = 'none';
-    document.getElementById('tabla').style.display   = '';
+    document.getElementById('spinner').style.display    = 'none';
+    document.getElementById('tabla-wrap').style.display = '';
     return;
   }
 
   if (vista === 'agrupado') {
     thead.innerHTML = `<tr>
-      <th>#</th><th>Partido / Movimiento</th><th>Registros</th>
-      <th class="money">Valor Reconocido</th>
-      <th class="money">Auditoría (descuento)</th>
-      <th class="money">Neto Girado</th>
-      <th>Corporaciones</th><th>Último Pago</th>
-    </tr>`;
-    tbody.innerHTML = data.map((r,i) => `<tr>
-      <td>${i+1}</td>
-      <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
-      <td>${r.registros}</td>
-      <td class="money rec">${fmt(r.val_reconocido)}</td>
-      <td class="money aud">${fmt(r.val_auditoria)}</td>
-      <td class="money neto">${fmt(r.val_neto)}</td>
-      <td style="font-size:11px;color:#666">${(r.corporaciones||'').replace(/,/g,', ')}</td>
-      <td style="font-size:11px">${r.ultima_fecha_pago||''}</td>
-    </tr>`).join('');
-  } else {
-    thead.innerHTML = `<tr>
-      <th>#</th><th>Partido / Movimiento</th><th>Corporación</th><th>Departamento</th>
+      <th>#</th>
+      <th>Partido / Movimiento</th>
       <th>Registros</th>
       <th class="money">Valor Reconocido</th>
       <th class="money">Auditoría</th>
       <th class="money">Neto Girado</th>
-      <th>Resolución Pago</th><th>Último Pago</th>
+      <th>Corporaciones</th>
+      <th>Último Pago</th>
     </tr>`;
     tbody.innerHTML = data.map((r,i) => `<tr>
-      <td>${i+1}</td>
+      <td class="row-num">${i+1}</td>
       <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
-      <td>${r.corp||''}</td>
-      <td>${r.dpto||''}</td>
-      <td>${r.registros}</td>
+      <td style="color:rgba(224,244,255,.7)">${r.registros}</td>
       <td class="money rec">${fmt(r.val_reconocido)}</td>
       <td class="money aud">${fmt(r.val_auditoria)}</td>
       <td class="money neto">${fmt(r.val_neto)}</td>
-      <td style="font-size:11px">${r.resoluciones||''}</td>
-      <td style="font-size:11px">${r.ultima_fecha_pago||''}</td>
+      <td style="font-size:.72rem;color:rgba(224,244,255,.55)">${(r.corporaciones||'').replace(/,/g,', ')}</td>
+      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.ultima_fecha_pago||''}</td>
     </tr>`).join('');
+    const totRec = data.reduce((s,r)=>s+(r.val_reconocido||0),0);
+    const totAud = data.reduce((s,r)=>s+(r.val_auditoria||0),0);
+    const totNet = data.reduce((s,r)=>s+(r.val_neto||0),0);
+    tfoot.innerHTML = `<tr>
+      <td colspan="3">TOTAL — ${data.length} partidos</td>
+      <td class="money rec">${fmt(totRec)}</td>
+      <td class="money aud">${fmt(totAud)}</td>
+      <td class="money neto">${fmt(totNet)}</td>
+      <td colspan="2"></td>
+    </tr>`;
+  } else {
+    thead.innerHTML = `<tr>
+      <th>#</th>
+      <th>Partido / Movimiento</th>
+      <th>Corporación</th>
+      <th>Departamento</th>
+      <th>Registros</th>
+      <th class="money">Valor Reconocido</th>
+      <th class="money">Auditoría</th>
+      <th class="money">Neto Girado</th>
+      <th>Resolución Pago</th>
+      <th>Último Pago</th>
+    </tr>`;
+    tbody.innerHTML = data.map((r,i) => `<tr>
+      <td class="row-num">${i+1}</td>
+      <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
+      <td><span class="corp-badge">${r.corp||''}</span></td>
+      <td style="font-weight:600">${r.dpto||''}</td>
+      <td style="color:rgba(224,244,255,.7)">${r.registros}</td>
+      <td class="money rec">${fmt(r.val_reconocido)}</td>
+      <td class="money aud">${fmt(r.val_auditoria)}</td>
+      <td class="money neto">${fmt(r.val_neto)}</td>
+      <td>${r.resoluciones ? `<span class="res-badge">${r.resoluciones}</span>` : ''}</td>
+      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.ultima_fecha_pago||''}</td>
+    </tr>`).join('');
+    const totRec = data.reduce((s,r)=>s+(r.val_reconocido||0),0);
+    const totAud = data.reduce((s,r)=>s+(r.val_auditoria||0),0);
+    const totNet = data.reduce((s,r)=>s+(r.val_neto||0),0);
+    tfoot.innerHTML = `<tr>
+      <td colspan="5">TOTAL</td>
+      <td class="money rec">${fmt(totRec)}</td>
+      <td class="money aud">${fmt(totAud)}</td>
+      <td class="money neto">${fmt(totNet)}</td>
+      <td colspan="2"></td>
+    </tr>`;
   }
 
-  // Totales pie
-  const totRec = data.reduce((s,r) => s + (r.val_reconocido||0), 0);
-  const totAud = data.reduce((s,r) => s + (r.val_auditoria||0), 0);
-  const totNet = data.reduce((s,r) => s + (r.val_neto||0), 0);
-  const esAgrupado = vista === 'agrupado';
-  tfoot.innerHTML = `<tr>
-    <td colspan="${esAgrupado?3:5}">TOTAL</td>
-    <td class="money rec">${fmt(totRec)}</td>
-    <td class="money aud">${fmt(totAud)}</td>
-    <td class="money neto">${fmt(totNet)}</td>
-    <td colspan="2"></td>
-  </tr>`;
-
-  document.getElementById('spinner').style.display = 'none';
-  document.getElementById('tabla').style.display   = '';
+  document.getElementById('spinner').style.display    = 'none';
+  document.getElementById('tabla-wrap').style.display = '';
 }
+
+function exportarCSV() {
+  if (!datos.length) return;
+  const keys = Object.keys(datos[0]);
+  const rows = [keys.join(','), ...datos.map(r => keys.map(k => JSON.stringify(r[k]??'')).join(','))];
+  const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `pagos_partido_${vista}.csv`;
+  a.click();
+}
+
+// Enter en filtros
+document.addEventListener('keydown', e => { if (e.key === 'Enter') cargar(); });
 
 cargar();
 </script>
