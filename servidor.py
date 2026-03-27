@@ -2089,28 +2089,49 @@ class Handler(SimpleHTTPRequestHandler):
             import sqlite3 as _sq
             con = _sq.connect(db_path)
 
-            if agrupado:
-                sql = """
+            individual = (qs.get("individual") or "") == "1"
+
+            params = []
+            where  = " WHERE 1=1"
+            if partido_f:
+                where += " AND UPPER(PARTIDO_MOVIMIENTO) LIKE ?"
+                params.append(f"%{partido_f}%")
+            if corp_f:
+                where += " AND UPPER(CORPORACION) LIKE ?"
+                params.append(f"%{corp_f}%")
+            if dpto_f:
+                where += " AND UPPER(DEPARTAMENTO) LIKE ?"
+                params.append(f"%{dpto_f}%")
+
+            if individual:
+                sql = f"""
+                    SELECT NO, PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO, MUNICIPIO,
+                           VALOR_RECONOCIDO, VALOR_AUDITORIA, VALOR_NETO_GIRADO,
+                           RES_RECONOCIMIENTO, FECHA_RECONOCIMIENTO,
+                           RES_PAGO, FECHA_PAGO
+                    FROM pagos_elecciones{where}
+                    ORDER BY PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO
+                """
+                rows = con.execute(sql, params).fetchall()
+                con.close()
+                result = [{"no": r[0], "partido": r[1], "corp": r[2], "dpto": r[3] or "",
+                           "municipio": r[4] or "",
+                           "val_reconocido": r[5] or 0, "val_auditoria": r[6] or 0,
+                           "val_neto": r[7] or 0,
+                           "res_reconocimiento": r[8] or "", "fecha_reconocimiento": r[9] or "",
+                           "res_pago": r[10] or "", "fecha_pago": r[11] or ""} for r in rows]
+            elif agrupado:
+                sql = f"""
                     SELECT PARTIDO_MOVIMIENTO,
                            COUNT(*) as registros,
-                           SUM(VALOR_RECONOCIDO)  as total_reconocido,
-                           SUM(VALOR_AUDITORIA)   as total_auditoria,
+                           SUM(VALOR_RECONOCIDO) as total_reconocido,
+                           SUM(VALOR_AUDITORIA)  as total_auditoria,
                            SUM(VALOR_NETO_GIRADO) as total_neto,
                            GROUP_CONCAT(DISTINCT CORPORACION) as corporaciones,
                            MAX(FECHA_PAGO) as ultima_fecha_pago
-                    FROM pagos_elecciones WHERE 1=1
+                    FROM pagos_elecciones{where}
+                    GROUP BY PARTIDO_MOVIMIENTO ORDER BY total_reconocido DESC
                 """
-                params = []
-                if partido_f:
-                    sql += " AND UPPER(PARTIDO_MOVIMIENTO) LIKE ?"
-                    params.append(f"%{partido_f}%")
-                if corp_f:
-                    sql += " AND UPPER(CORPORACION) LIKE ?"
-                    params.append(f"%{corp_f}%")
-                if dpto_f:
-                    sql += " AND UPPER(DEPARTAMENTO) LIKE ?"
-                    params.append(f"%{dpto_f}%")
-                sql += " GROUP BY PARTIDO_MOVIMIENTO ORDER BY total_reconocido DESC"
                 rows = con.execute(sql, params).fetchall()
                 con.close()
                 result = [{"partido": r[0], "registros": r[1],
@@ -2118,34 +2139,25 @@ class Handler(SimpleHTTPRequestHandler):
                            "val_neto": r[4] or 0, "corporaciones": r[5] or "",
                            "ultima_fecha_pago": r[6] or ""} for r in rows]
             else:
-                sql = """
-                    SELECT PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO, MUNICIPIO,
+                sql = f"""
+                    SELECT PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO,
                            COUNT(*) as registros,
-                           SUM(VALOR_RECONOCIDO)  as total_reconocido,
-                           SUM(VALOR_AUDITORIA)   as total_auditoria,
+                           SUM(VALOR_RECONOCIDO) as total_reconocido,
+                           SUM(VALOR_AUDITORIA)  as total_auditoria,
                            SUM(VALOR_NETO_GIRADO) as total_neto,
                            GROUP_CONCAT(DISTINCT RES_PAGO) as resoluciones,
                            MAX(FECHA_PAGO) as ultima_fecha_pago
-                    FROM pagos_elecciones WHERE 1=1
+                    FROM pagos_elecciones{where}
+                    GROUP BY PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO
+                    ORDER BY total_reconocido DESC
                 """
-                params = []
-                if partido_f:
-                    sql += " AND UPPER(PARTIDO_MOVIMIENTO) LIKE ?"
-                    params.append(f"%{partido_f}%")
-                if corp_f:
-                    sql += " AND UPPER(CORPORACION) LIKE ?"
-                    params.append(f"%{corp_f}%")
-                if dpto_f:
-                    sql += " AND UPPER(DEPARTAMENTO) LIKE ?"
-                    params.append(f"%{dpto_f}%")
-                sql += " GROUP BY PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO ORDER BY total_reconocido DESC"
                 rows = con.execute(sql, params).fetchall()
                 con.close()
-                result = [{"partido": r[0], "corp": r[1], "dpto": r[2] or "", "mun": r[3] or "",
-                           "registros": r[4],
-                           "val_reconocido": r[5] or 0, "val_auditoria": r[6] or 0,
-                           "val_neto": r[7] or 0,
-                           "resoluciones": r[8] or "", "ultima_fecha_pago": r[9] or ""} for r in rows]
+                result = [{"partido": r[0], "corp": r[1], "dpto": r[2] or "",
+                           "registros": r[3],
+                           "val_reconocido": r[4] or 0, "val_auditoria": r[5] or 0,
+                           "val_neto": r[6] or 0,
+                           "resoluciones": r[7] or "", "ultima_fecha_pago": r[8] or ""} for r in rows]
 
             self._send_json(result)
         except Exception as e:

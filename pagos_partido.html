@@ -89,8 +89,9 @@
 
   <!-- Toggle vista -->
   <div class="vista-toggle">
-    <button class="btn-vista active" id="btn-agrupado" onclick="setVista(true)">Por Partido (total)</button>
-    <button class="btn-vista" id="btn-detalle"  onclick="setVista(false)">Detalle por Corp / Dpto</button>
+    <button class="btn-vista active" id="btn-agrupado"    onclick="setVista('agrupado')">Por Partido (total)</button>
+    <button class="btn-vista"        id="btn-detalle"     onclick="setVista('detalle')">Por Corp / Dpto</button>
+    <button class="btn-vista"        id="btn-individual"  onclick="setVista('individual')">📋 Detalle completo</button>
   </div>
 
   <!-- Tabla -->
@@ -107,18 +108,19 @@
 </div>
 
 <script>
-const API = '';   // mismo origen (Render)
-let agrupado = true;
+const API = '';
+let vista = 'agrupado'; // 'agrupado' | 'detalle' | 'individual'
 let datos = [];
 
 function fmt(n) {
   return '$' + Math.round(n).toLocaleString('es-CO');
 }
 
-function setVista(val) {
-  agrupado = val;
-  document.getElementById('btn-agrupado').classList.toggle('active', val);
-  document.getElementById('btn-detalle').classList.toggle('active', !val);
+function setVista(v) {
+  vista = v;
+  document.getElementById('btn-agrupado').classList.toggle('active',   v === 'agrupado');
+  document.getElementById('btn-detalle').classList.toggle('active',    v === 'detalle');
+  document.getElementById('btn-individual').classList.toggle('active', v === 'individual');
   cargar();
 }
 
@@ -138,7 +140,7 @@ async function cargar() {
   const c = document.getElementById('f-corp').value.trim();
   const d = document.getElementById('f-dpto').value.trim();
 
-  const url = `/api/pagos_partido?agrupado=${agrupado?1:0}` +
+  const url = `/api/pagos_partido?agrupado=${vista==='agrupado'?1:0}&individual=${vista==='individual'?1:0}` +
     (p ? `&partido=${encodeURIComponent(p)}` : '') +
     (c ? `&corp=${encodeURIComponent(c)}` : '') +
     (d ? `&dpto=${encodeURIComponent(d)}` : '');
@@ -161,8 +163,8 @@ function renderSummary(data) {
   const totRec = data.reduce((s,r) => s + (r.val_reconocido||0), 0);
   const totAud = data.reduce((s,r) => s + (r.val_auditoria||0), 0);
   const totNet = data.reduce((s,r) => s + (r.val_neto||0), 0);
-  const totReg = data.reduce((s,r) => s + (r.registros||0), 0);
-  const partidos = agrupado ? data.length : new Set(data.map(r=>r.partido)).size;
+  const totReg = vista === 'individual' ? data.length : data.reduce((s,r) => s + (r.registros||0), 0);
+  const partidos = vista === 'agrupado' ? data.length : new Set(data.map(r=>r.partido)).size;
   document.getElementById('sum-partidos').textContent   = partidos;
   document.getElementById('sum-reconocido').textContent = fmt(totRec);
   document.getElementById('sum-auditoria').textContent  = fmt(totAud);
@@ -175,7 +177,45 @@ function renderTabla(data) {
   const tbody = document.getElementById('tbody');
   const tfoot = document.getElementById('tfoot');
 
-  if (agrupado) {
+  if (vista === 'individual') {
+    thead.innerHTML = `<tr>
+      <th>#</th><th>Partido / Movimiento</th><th>Corporación</th><th>Departamento</th><th>Municipio</th>
+      <th class="money">Valor Reconocido</th>
+      <th class="money">Auditoría</th>
+      <th class="money">Neto Girado</th>
+      <th>Res. Reconocimiento</th><th>Fecha Reconoc.</th>
+      <th>Res. Pago</th><th>Fecha Pago</th>
+    </tr>`;
+    tbody.innerHTML = data.map((r,i) => `<tr>
+      <td>${i+1}</td>
+      <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
+      <td>${r.corp||''}</td>
+      <td><strong>${r.dpto||''}</strong></td>
+      <td style="font-size:11px;color:#666">${r.municipio||''}</td>
+      <td class="money rec">${fmt(r.val_reconocido)}</td>
+      <td class="money aud">${fmt(r.val_auditoria)}</td>
+      <td class="money neto">${fmt(r.val_neto)}</td>
+      <td style="font-size:11px">${r.res_reconocimiento||'—'}</td>
+      <td style="font-size:11px">${r.fecha_reconocimiento||'—'}</td>
+      <td style="font-size:11px"><strong>${r.res_pago||'—'}</strong></td>
+      <td style="font-size:11px"><strong>${r.fecha_pago||'—'}</strong></td>
+    </tr>`).join('');
+    const totRec = data.reduce((s,r)=>s+(r.val_reconocido||0),0);
+    const totAud = data.reduce((s,r)=>s+(r.val_auditoria||0),0);
+    const totNet = data.reduce((s,r)=>s+(r.val_neto||0),0);
+    tfoot.innerHTML = `<tr>
+      <td colspan="5">TOTAL (${data.length} registros)</td>
+      <td class="money rec">${fmt(totRec)}</td>
+      <td class="money aud">${fmt(totAud)}</td>
+      <td class="money neto">${fmt(totNet)}</td>
+      <td colspan="4"></td>
+    </tr>`;
+    document.getElementById('spinner').style.display = 'none';
+    document.getElementById('tabla').style.display   = '';
+    return;
+  }
+
+  if (vista === 'agrupado') {
     thead.innerHTML = `<tr>
       <th>#</th><th>Partido / Movimiento</th><th>Registros</th>
       <th class="money">Valor Reconocido</th>
@@ -220,13 +260,13 @@ function renderTabla(data) {
   const totRec = data.reduce((s,r) => s + (r.val_reconocido||0), 0);
   const totAud = data.reduce((s,r) => s + (r.val_auditoria||0), 0);
   const totNet = data.reduce((s,r) => s + (r.val_neto||0), 0);
-  const cols = agrupado ? 8 : 10;
+  const esAgrupado = vista === 'agrupado';
   tfoot.innerHTML = `<tr>
-    <td colspan="${agrupado?3:5}">TOTAL</td>
+    <td colspan="${esAgrupado?3:5}">TOTAL</td>
     <td class="money rec">${fmt(totRec)}</td>
     <td class="money aud">${fmt(totAud)}</td>
     <td class="money neto">${fmt(totNet)}</td>
-    <td colspan="${agrupado?2:2}"></td>
+    <td colspan="2"></td>
   </tr>`;
 
   document.getElementById('spinner').style.display = 'none';
