@@ -2146,9 +2146,9 @@ class Handler(SimpleHTTPRequestHandler):
                            "val_neto": r[7] or 0,
                            "resoluciones": r[8] or "", "ultima_fecha_pago": r[9] or ""} for r in rows]
 
-            self._json(result)
+            self._send_json(result)
         except Exception as e:
-            self._json({"error": str(e)}, 500)
+            self._send_json({"error": str(e)}, 500)
 
 
 # ── Servidor multi-hilo ───────────────────────────────────────────────────────
