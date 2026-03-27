@@ -64,7 +64,7 @@ def _load_repos_cache(portal_dir: str) -> None:
     with _repos_lock:
         if _repos_loaded:
             return
-        db_path = os.path.join(portal_dir, "data", "reposicion.db")
+        db_path = os.path.join(portal_dir, "data", "pagostres.db")
         if not os.path.exists(db_path):
             _repos_loaded = True
             return
@@ -76,14 +76,13 @@ def _load_repos_cache(portal_dir: str) -> None:
                 return "".join(c for c in s if _ud.category(c) != "Mn")
             con = _sq.connect(db_path)
             rows = con.execute("""
-                SELECT corporacion, departamento, partido,
-                       SUM(valor_reconocido), SUM(valor_auditoria), SUM(valor_neto),
-                       GROUP_CONCAT(DISTINCT estado_pago), GROUP_CONCAT(DISTINCT resolucion_cne)
-                FROM registros
-                WHERE vigencia_pago=2024 AND tipo_pago='REPOSICION'
-                  AND corporacion IN ('ALCALDIA','CONCEJO','ASAMBLEA','GOBERNACION','JAL',
+                SELECT CORPORACION, DEPARTAMENTO, PARTIDO_MOVIMIENTO,
+                       SUM(VALOR_RECONOCIDO), SUM(VALOR_AUDITORIA), SUM(VALOR_NETO_GIRADO),
+                       GROUP_CONCAT(DISTINCT RES_PAGO)
+                FROM pagos_elecciones
+                WHERE CORPORACION IN ('ALCALDIA','CONCEJO','ASAMBLEA','GOBERNACION','JAL',
                                       'ALCALDIA ATIPICA','CONCEJO ATIPICA')
-                GROUP BY corporacion, departamento, partido
+                GROUP BY CORPORACION, DEPARTAMENTO, PARTIDO_MOVIMIENTO
             """).fetchall()
             con.close()
             CORP_CC = {"ALCALDIA":"Alcaldía","CONCEJO":"Concejo","ASAMBLEA":"Asamblea",
@@ -91,27 +90,24 @@ def _load_repos_cache(portal_dir: str) -> None:
                        "ALCALDIA ATIPICA":"Alcaldía","CONCEJO ATIPICA":"Concejo"}
             full = {}
             agg  = {}
-            for corp_r, dpto_r, partido_r, val_rec, val_aud, val_neto, estados, resoluciones in rows:
+            for corp_r, dpto_r, partido_r, val_rec, val_aud, val_neto, resoluciones in rows:
                 corp_cc  = CORP_CC.get(corp_r, corp_r)
                 pk_full  = f"{_rn(partido_r)}|{_rn(corp_cc)}|{_rn(dpto_r)}"
                 pk_agg   = f"{_rn(partido_r)}|{_rn(corp_cc)}"
                 rec = {"val_rec": val_rec or 0, "val_neto": val_neto or 0,
-                       "estado": (estados or "").strip(), "resolucion": (resoluciones or "").strip()}
+                       "estado": "", "resolucion": (resoluciones or "").strip()}
                 full[pk_full] = rec
                 if pk_agg not in agg:
-                    agg[pk_agg] = {"val_rec": 0.0, "val_neto": 0.0, "estado": set(), "resolucion": set()}
-                agg[pk_agg]["val_rec"]   += val_rec or 0
-                agg[pk_agg]["val_neto"]  += val_neto or 0
-                if estados:  agg[pk_agg]["estado"].add(estados.strip())
+                    agg[pk_agg] = {"val_rec": 0.0, "val_neto": 0.0, "estado": "", "resolucion": set()}
+                agg[pk_agg]["val_rec"]  += val_rec or 0
+                agg[pk_agg]["val_neto"] += val_neto or 0
                 if resoluciones: agg[pk_agg]["resolucion"].add(resoluciones.strip())
-            # Convert sets to strings
             for v in agg.values():
-                v["estado"]     = ",".join(sorted(v["estado"]))
                 v["resolucion"] = ",".join(sorted(v["resolucion"]))
             _repos_full = full
             _repos_agg  = agg
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[pagostres] error cargando cache: {e}")
         _repos_loaded = True
 
 def _load_votos_cache(portal_dir: str) -> None:
@@ -601,6 +597,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._handle_cc_liquidacion_partidos()
             elif path == "/api/cc_exportar_dictamen":
                 self._handle_cc_exportar_dictamen()
+            elif path == "/api/pagos_partido":
+                self._handle_pagos_partido()
             else:
                 super().do_GET()
         except Exception as e:
@@ -2070,6 +2068,87 @@ class Handler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         pass  # Comentar para ver log de accesos
+
+    # ── /api/pagos_partido ────────────────────────────────────────────────────
+    def _handle_pagos_partido(self):
+        """
+        GET /api/pagos_partido?partido=&corp=&dpto=&agrupado=1
+        Devuelve pagos de pagostres.db agrupados por partido (+ corp + dpto).
+        Con agrupado=1 devuelve solo totales por partido sin desagregar.
+        """
+        qs        = self._qs()
+        partido_f = (qs.get("partido") or "").strip().upper()
+        corp_f    = (qs.get("corp")    or "").strip().upper()
+        dpto_f    = (qs.get("dpto")    or "").strip().upper()
+        agrupado  = (qs.get("agrupado") or "") == "1"
+
+        portal_dir = self.server.portal_dir if hasattr(self.server, "portal_dir") else os.getcwd()
+        db_path    = os.path.join(portal_dir, "data", "pagostres.db")
+        try:
+            import sqlite3 as _sq
+            con = _sq.connect(db_path)
+
+            if agrupado:
+                sql = """
+                    SELECT PARTIDO_MOVIMIENTO,
+                           COUNT(*) as registros,
+                           SUM(VALOR_RECONOCIDO)  as total_reconocido,
+                           SUM(VALOR_AUDITORIA)   as total_auditoria,
+                           SUM(VALOR_NETO_GIRADO) as total_neto,
+                           GROUP_CONCAT(DISTINCT CORPORACION) as corporaciones,
+                           MAX(FECHA_PAGO) as ultima_fecha_pago
+                    FROM pagos_elecciones WHERE 1=1
+                """
+                params = []
+                if partido_f:
+                    sql += " AND UPPER(PARTIDO_MOVIMIENTO) LIKE ?"
+                    params.append(f"%{partido_f}%")
+                if corp_f:
+                    sql += " AND UPPER(CORPORACION) LIKE ?"
+                    params.append(f"%{corp_f}%")
+                if dpto_f:
+                    sql += " AND UPPER(DEPARTAMENTO) LIKE ?"
+                    params.append(f"%{dpto_f}%")
+                sql += " GROUP BY PARTIDO_MOVIMIENTO ORDER BY total_reconocido DESC"
+                rows = con.execute(sql, params).fetchall()
+                con.close()
+                result = [{"partido": r[0], "registros": r[1],
+                           "val_reconocido": r[2] or 0, "val_auditoria": r[3] or 0,
+                           "val_neto": r[4] or 0, "corporaciones": r[5] or "",
+                           "ultima_fecha_pago": r[6] or ""} for r in rows]
+            else:
+                sql = """
+                    SELECT PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO, MUNICIPIO,
+                           COUNT(*) as registros,
+                           SUM(VALOR_RECONOCIDO)  as total_reconocido,
+                           SUM(VALOR_AUDITORIA)   as total_auditoria,
+                           SUM(VALOR_NETO_GIRADO) as total_neto,
+                           GROUP_CONCAT(DISTINCT RES_PAGO) as resoluciones,
+                           MAX(FECHA_PAGO) as ultima_fecha_pago
+                    FROM pagos_elecciones WHERE 1=1
+                """
+                params = []
+                if partido_f:
+                    sql += " AND UPPER(PARTIDO_MOVIMIENTO) LIKE ?"
+                    params.append(f"%{partido_f}%")
+                if corp_f:
+                    sql += " AND UPPER(CORPORACION) LIKE ?"
+                    params.append(f"%{corp_f}%")
+                if dpto_f:
+                    sql += " AND UPPER(DEPARTAMENTO) LIKE ?"
+                    params.append(f"%{dpto_f}%")
+                sql += " GROUP BY PARTIDO_MOVIMIENTO, CORPORACION, DEPARTAMENTO ORDER BY total_reconocido DESC"
+                rows = con.execute(sql, params).fetchall()
+                con.close()
+                result = [{"partido": r[0], "corp": r[1], "dpto": r[2] or "", "mun": r[3] or "",
+                           "registros": r[4],
+                           "val_reconocido": r[5] or 0, "val_auditoria": r[6] or 0,
+                           "val_neto": r[7] or 0,
+                           "resoluciones": r[8] or "", "ultima_fecha_pago": r[9] or ""} for r in rows]
+
+            self._json(result)
+        except Exception as e:
+            self._json({"error": str(e)}, 500)
 
 
 # ── Servidor multi-hilo ───────────────────────────────────────────────────────

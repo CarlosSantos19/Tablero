@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>Pagos por Partido — FNFPCE</title>
+  <link rel="stylesheet" href="css/adriana.css"/>
+  <style>
+    body { font-family:'Segoe UI',sans-serif; background:#f4f6fb; margin:0; }
+    .top-bar { background:#003893; color:#fff; padding:14px 24px; display:flex; align-items:center; gap:16px; }
+    .top-bar a { color:#FCD116; text-decoration:none; font-size:13px; }
+    .top-bar h1 { margin:0; font-size:17px; flex:1; }
+    .container { max-width:1200px; margin:0 auto; padding:24px 16px; }
+
+    /* Resumen cards */
+    .summary-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-bottom:24px; }
+    .sum-card { background:#fff; border-radius:8px; padding:18px; box-shadow:0 1px 4px rgba(0,0,0,.1); }
+    .sum-card .lbl { font-size:11px; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+    .sum-card .val { font-size:20px; font-weight:700; color:#003893; }
+    .sum-card .val.green { color:#1a7a4a; }
+    .sum-card .val.red   { color:#c0392b; }
+
+    /* Filtros */
+    .filtros { background:#fff; border-radius:8px; padding:16px; box-shadow:0 1px 4px rgba(0,0,0,.08); margin-bottom:20px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+    .filtros label { font-size:12px; color:#555; display:flex; flex-direction:column; gap:4px; min-width:180px; }
+    .filtros input, .filtros select { padding:8px 10px; border:1px solid #d0d7e2; border-radius:5px; font-size:13px; }
+    .btn-filtrar { background:#003893; color:#fff; border:none; padding:9px 20px; border-radius:5px; cursor:pointer; font-size:13px; }
+    .btn-filtrar:hover { background:#002570; }
+    .btn-limpiar { background:#f0f0f0; color:#333; border:none; padding:9px 16px; border-radius:5px; cursor:pointer; font-size:13px; }
+
+    /* Toggle vista */
+    .vista-toggle { display:flex; gap:8px; margin-bottom:14px; }
+    .btn-vista { background:#eef1f7; border:1px solid #d0d7e2; padding:7px 16px; border-radius:5px; cursor:pointer; font-size:12px; color:#444; }
+    .btn-vista.active { background:#003893; color:#fff; border-color:#003893; }
+
+    /* Tabla */
+    .tabla-wrap { background:#fff; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,.08); overflow:auto; }
+    table { width:100%; border-collapse:collapse; font-size:13px; }
+    thead th { background:#003893; color:#fff; padding:10px 12px; text-align:left; white-space:nowrap; position:sticky; top:0; }
+    tbody tr:hover { background:#f0f4ff; }
+    tbody td { padding:9px 12px; border-bottom:1px solid #eef0f5; }
+    .money { text-align:right; font-variant-numeric:tabular-nums; }
+    .money.rec  { color:#1565c0; font-weight:600; }
+    .money.aud  { color:#c0392b; }
+    .money.neto { color:#1a7a4a; font-weight:700; }
+    .partido-badge { display:inline-block; background:#eef1f7; border-radius:4px; padding:2px 8px; font-size:11px; font-weight:600; color:#003893; max-width:260px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .spinner { text-align:center; padding:40px; color:#888; }
+    .error-msg { color:#c0392b; padding:20px; text-align:center; }
+    tfoot td { background:#f8f9fc; font-weight:700; border-top:2px solid #d0d7e2; }
+  </style>
+</head>
+<body>
+
+<div class="top-bar">
+  <a href="javascript:history.back()">← Volver</a>
+  <h1>💰 Pagos por Partido / Movimiento</h1>
+  <span style="font-size:12px;opacity:.8">Fuente: pagostres.db</span>
+</div>
+
+<div class="container">
+
+  <!-- Resumen global -->
+  <div class="summary-grid" id="summary-grid">
+    <div class="sum-card"><div class="lbl">Partidos / Movimientos</div><div class="val" id="sum-partidos">—</div></div>
+    <div class="sum-card"><div class="lbl">Total Reconocido</div><div class="val" id="sum-reconocido">—</div></div>
+    <div class="sum-card"><div class="lbl">Total Auditoría</div><div class="val red" id="sum-auditoria">—</div></div>
+    <div class="sum-card"><div class="lbl">Total Neto Girado</div><div class="val green" id="sum-neto">—</div></div>
+    <div class="sum-card"><div class="lbl">Registros</div><div class="val" id="sum-registros">—</div></div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filtros">
+    <label>Partido / Movimiento
+      <input type="text" id="f-partido" placeholder="Ej: CONSERVADOR" />
+    </label>
+    <label>Corporación
+      <select id="f-corp">
+        <option value="">Todas</option>
+        <option>ALCALDIA</option><option>CONCEJO</option><option>ASAMBLEA</option>
+        <option>GOBERNACION</option><option>JAL</option>
+      </select>
+    </label>
+    <label>Departamento
+      <input type="text" id="f-dpto" placeholder="Ej: CUNDINAMARCA" />
+    </label>
+    <button class="btn-filtrar" onclick="cargar()">Filtrar</button>
+    <button class="btn-limpiar" onclick="limpiar()">Limpiar</button>
+  </div>
+
+  <!-- Toggle vista -->
+  <div class="vista-toggle">
+    <button class="btn-vista active" id="btn-agrupado" onclick="setVista(true)">Por Partido (total)</button>
+    <button class="btn-vista" id="btn-detalle"  onclick="setVista(false)">Detalle por Corp / Dpto</button>
+  </div>
+
+  <!-- Tabla -->
+  <div class="tabla-wrap">
+    <div class="spinner" id="spinner">Cargando datos…</div>
+    <div class="error-msg" id="error-msg" style="display:none"></div>
+    <table id="tabla" style="display:none">
+      <thead id="thead"></thead>
+      <tbody id="tbody"></tbody>
+      <tfoot id="tfoot"></tfoot>
+    </table>
+  </div>
+
+</div>
+
+<script>
+const API = '';   // mismo origen (Render)
+let agrupado = true;
+let datos = [];
+
+function fmt(n) {
+  return '$' + Math.round(n).toLocaleString('es-CO');
+}
+
+function setVista(val) {
+  agrupado = val;
+  document.getElementById('btn-agrupado').classList.toggle('active', val);
+  document.getElementById('btn-detalle').classList.toggle('active', !val);
+  cargar();
+}
+
+function limpiar() {
+  document.getElementById('f-partido').value = '';
+  document.getElementById('f-corp').value    = '';
+  document.getElementById('f-dpto').value    = '';
+  cargar();
+}
+
+async function cargar() {
+  document.getElementById('spinner').style.display = '';
+  document.getElementById('tabla').style.display   = 'none';
+  document.getElementById('error-msg').style.display = 'none';
+
+  const p = document.getElementById('f-partido').value.trim();
+  const c = document.getElementById('f-corp').value.trim();
+  const d = document.getElementById('f-dpto').value.trim();
+
+  const url = `/api/pagos_partido?agrupado=${agrupado?1:0}` +
+    (p ? `&partido=${encodeURIComponent(p)}` : '') +
+    (c ? `&corp=${encodeURIComponent(c)}` : '') +
+    (d ? `&dpto=${encodeURIComponent(d)}` : '');
+
+  try {
+    const res  = await fetch(url);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    datos = data;
+    renderTabla(data);
+    renderSummary(data);
+  } catch(e) {
+    document.getElementById('spinner').style.display   = 'none';
+    document.getElementById('error-msg').style.display = '';
+    document.getElementById('error-msg').textContent   = 'Error: ' + e.message;
+  }
+}
+
+function renderSummary(data) {
+  const totRec = data.reduce((s,r) => s + (r.val_reconocido||0), 0);
+  const totAud = data.reduce((s,r) => s + (r.val_auditoria||0), 0);
+  const totNet = data.reduce((s,r) => s + (r.val_neto||0), 0);
+  const totReg = data.reduce((s,r) => s + (r.registros||0), 0);
+  const partidos = agrupado ? data.length : new Set(data.map(r=>r.partido)).size;
+  document.getElementById('sum-partidos').textContent   = partidos;
+  document.getElementById('sum-reconocido').textContent = fmt(totRec);
+  document.getElementById('sum-auditoria').textContent  = fmt(totAud);
+  document.getElementById('sum-neto').textContent       = fmt(totNet);
+  document.getElementById('sum-registros').textContent  = totReg;
+}
+
+function renderTabla(data) {
+  const thead = document.getElementById('thead');
+  const tbody = document.getElementById('tbody');
+  const tfoot = document.getElementById('tfoot');
+
+  if (agrupado) {
+    thead.innerHTML = `<tr>
+      <th>#</th><th>Partido / Movimiento</th><th>Registros</th>
+      <th class="money">Valor Reconocido</th>
+      <th class="money">Auditoría (descuento)</th>
+      <th class="money">Neto Girado</th>
+      <th>Corporaciones</th><th>Último Pago</th>
+    </tr>`;
+    tbody.innerHTML = data.map((r,i) => `<tr>
+      <td>${i+1}</td>
+      <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
+      <td>${r.registros}</td>
+      <td class="money rec">${fmt(r.val_reconocido)}</td>
+      <td class="money aud">${fmt(r.val_auditoria)}</td>
+      <td class="money neto">${fmt(r.val_neto)}</td>
+      <td style="font-size:11px;color:#666">${(r.corporaciones||'').replace(/,/g,', ')}</td>
+      <td style="font-size:11px">${r.ultima_fecha_pago||''}</td>
+    </tr>`).join('');
+  } else {
+    thead.innerHTML = `<tr>
+      <th>#</th><th>Partido / Movimiento</th><th>Corporación</th><th>Departamento</th>
+      <th>Registros</th>
+      <th class="money">Valor Reconocido</th>
+      <th class="money">Auditoría</th>
+      <th class="money">Neto Girado</th>
+      <th>Resolución Pago</th><th>Último Pago</th>
+    </tr>`;
+    tbody.innerHTML = data.map((r,i) => `<tr>
+      <td>${i+1}</td>
+      <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
+      <td>${r.corp||''}</td>
+      <td>${r.dpto||''}</td>
+      <td>${r.registros}</td>
+      <td class="money rec">${fmt(r.val_reconocido)}</td>
+      <td class="money aud">${fmt(r.val_auditoria)}</td>
+      <td class="money neto">${fmt(r.val_neto)}</td>
+      <td style="font-size:11px">${r.resoluciones||''}</td>
+      <td style="font-size:11px">${r.ultima_fecha_pago||''}</td>
+    </tr>`).join('');
+  }
+
+  // Totales pie
+  const totRec = data.reduce((s,r) => s + (r.val_reconocido||0), 0);
+  const totAud = data.reduce((s,r) => s + (r.val_auditoria||0), 0);
+  const totNet = data.reduce((s,r) => s + (r.val_neto||0), 0);
+  const cols = agrupado ? 8 : 10;
+  tfoot.innerHTML = `<tr>
+    <td colspan="${agrupado?3:5}">TOTAL</td>
+    <td class="money rec">${fmt(totRec)}</td>
+    <td class="money aud">${fmt(totAud)}</td>
+    <td class="money neto">${fmt(totNet)}</td>
+    <td colspan="${agrupado?2:2}"></td>
+  </tr>`;
+
+  document.getElementById('spinner').style.display = 'none';
+  document.getElementById('tabla').style.display   = '';
+}
+
+cargar();
+</script>
+</body>
+</html>
