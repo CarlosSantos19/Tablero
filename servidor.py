@@ -95,7 +95,8 @@ def _load_repos_cache(portal_dir: str) -> None:
                 pk_full  = f"{_rn(partido_r)}|{_rn(corp_cc)}|{_rn(dpto_r)}"
                 pk_agg   = f"{_rn(partido_r)}|{_rn(corp_cc)}"
                 rec = {"val_rec": val_rec or 0, "val_neto": val_neto or 0,
-                       "estado": "", "resolucion": (resoluciones or "").strip()}
+                       "estado": "", "resolucion": (resoluciones or "").strip(),
+                       "dpto": dpto_r or ""}
                 full[pk_full] = rec
                 if pk_agg not in agg:
                     agg[pk_agg] = {"val_rec": 0.0, "val_neto": 0.0, "estado": "", "resolucion": set()}
@@ -2010,7 +2011,7 @@ class Handler(SimpleHTTPRequestHandler):
             resultado.append({
                 "partido":     g["partido"],
                 "corp":        CORP_LABEL.get(g["corp"], g["corp"]),
-                "dpto":        g["dpto"],
+                "dpto":        g["dpto"] or (rep_full["dpto"] if rep_full else "") or (rep_agg.get("dpto","") if rep_agg else ""),
                 "candidatos":  g["candidatos"],
                 "radicaron":   g["radicaron"],
                 "votos":       g["votos"],
