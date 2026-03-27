@@ -1382,13 +1382,26 @@ class Handler(SimpleHTTPRequestHandler):
     # ── /api/cc_stats  y  /api/cc_candidatos ─────────────────────────────────
 
     def _handle_cc_stats(self):
-        """Sirve data/cc_stats_analisis.json con totales por dpto/partido/corp."""
-        path = os.path.join("data", "cc_stats_analisis.json")
-        if not os.path.exists(path):
+        """Sirve data/cc_stats_analisis.json enriquecido con totales financieros de cc_financiero.json."""
+        portal_dir = self.server.portal_dir if hasattr(self.server, "portal_dir") else os.getcwd()
+        stats_path = os.path.join(portal_dir, "data", "cc_stats_analisis.json")
+        fin_path   = os.path.join(portal_dir, "data", "cc_financiero.json")
+        if not os.path.exists(stats_path):
             return self._send_json({"error": "No indexado aún. Ejecute indexar_candidatos_cc.py"})
         try:
-            with open(path, encoding="utf-8") as f:
-                self._send_json(json.load(f))
+            with open(stats_path, encoding="utf-8") as f:
+                data = json.load(f)
+            # Calcular totales reales de ingresos y gastos desde cc_financiero
+            if os.path.exists(fin_path):
+                with open(fin_path, encoding="utf-8") as f:
+                    cc_fin = json.load(f)
+                total_ingresos = sum((v.get("total_ingreso") or 0) for v in cc_fin.values())
+                total_gastos   = sum((v.get("total_gasto")   or 0) for v in cc_fin.values())
+                reportaron     = sum(1 for v in cc_fin.values() if v.get("envio_informe"))
+                data["total_ingresos"] = round(total_ingresos, 2)
+                data["total_gastos"]   = round(total_gastos,   2)
+                data["total_reportaron"] = reportaron
+            self._send_json(data)
         except Exception as e:
             self._send_error_json(str(e))
 

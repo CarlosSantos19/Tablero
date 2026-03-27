@@ -109,46 +109,61 @@ body{background:#f0f4f8;font-size:.88rem;}
 
   <!-- KPI Row -->
   <div class="row g-3 mb-4" id="kpi-row">
-    <div class="col-6 col-lg-2">
+    <div class="col-6 col-md-4 col-lg-2">
       <div class="kpi-card" style="background:linear-gradient(135deg,#003478,#005cb2)">
         <div class="icon"><i class="fa fa-users"></i></div>
         <div class="val" id="kpi-total">—</div>
         <div class="lbl">Candidatos indexados</div>
       </div>
     </div>
-    <div class="col-6 col-lg-2">
+    <div class="col-6 col-md-4 col-lg-2">
       <div class="kpi-card" style="background:linear-gradient(135deg,#198754,#20c997)">
         <div class="icon"><i class="fa fa-check-circle"></i></div>
         <div class="val" id="kpi-radicaron">—</div>
         <div class="lbl">Radicaron</div>
       </div>
     </div>
-    <div class="col-6 col-lg-2">
+    <div class="col-6 col-md-4 col-lg-2">
       <div class="kpi-card" style="background:linear-gradient(135deg,#dc3545,#e85d72)">
         <div class="icon"><i class="fa fa-times-circle"></i></div>
         <div class="val" id="kpi-sinrad">—</div>
         <div class="lbl">Sin radicación</div>
       </div>
     </div>
-    <div class="col-6 col-lg-2">
-      <div class="kpi-card" style="background:linear-gradient(135deg,#0d6efd,#4ba3ff)">
-        <div class="icon"><i class="fa fa-file-invoice-dollar"></i></div>
-        <div class="val" id="kpi-consolidado">—</div>
-        <div class="lbl">Con consolidado</div>
-      </div>
-    </div>
-    <div class="col-6 col-lg-2">
+    <div class="col-6 col-md-4 col-lg-2">
       <div class="kpi-card" style="background:linear-gradient(135deg,#6f42c1,#9a69e0)">
         <div class="icon"><i class="fa fa-percentage"></i></div>
         <div class="val" id="kpi-pct-rad">—</div>
         <div class="lbl">% que radicó</div>
       </div>
     </div>
-    <div class="col-6 col-lg-2">
+    <div class="col-6 col-md-4 col-lg-2">
       <div class="kpi-card" style="background:linear-gradient(135deg,#fd7e14,#ffaa5a)">
         <div class="icon"><i class="fa fa-map-marker-alt"></i></div>
         <div class="val" id="kpi-dptos">—</div>
         <div class="lbl">Departamentos</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#0d6efd,#4ba3ff)">
+        <div class="icon"><i class="fa fa-file-invoice-dollar"></i></div>
+        <div class="val" id="kpi-consolidado">—</div>
+        <div class="lbl">Con consolidado</div>
+      </div>
+    </div>
+    <!-- Nuevas: ingresos y gastos Colombia -->
+    <div class="col-6 col-md-6 col-lg-3">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#1b5e20,#388e3c)">
+        <div class="icon"><i class="fa fa-arrow-circle-up"></i></div>
+        <div class="val" id="kpi-ingresos">—</div>
+        <div class="lbl">Total Ingresos Colombia</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-6 col-lg-3">
+      <div class="kpi-card" style="background:linear-gradient(135deg,#b71c1c,#d32f2f)">
+        <div class="icon"><i class="fa fa-arrow-circle-down"></i></div>
+        <div class="val" id="kpi-gastos">—</div>
+        <div class="lbl">Total Gastos Colombia</div>
       </div>
     </div>
   </div>
@@ -374,6 +389,13 @@ function fmtPesos(v){
 function fmtNum(v){
   return (parseFloat(v)||0).toLocaleString('es-CO');
 }
+function fmtCOP(v){
+  v = parseFloat(v)||0;
+  if(v>=1e12) return '$'+(v/1e12).toFixed(2)+' Bil';
+  if(v>=1e9)  return '$'+(v/1e9).toFixed(2)+' MM';
+  if(v>=1e6)  return '$'+(v/1e6).toFixed(1)+' M';
+  return '$'+v.toLocaleString('es-CO',{minimumFractionDigits:0,maximumFractionDigits:0});
+}
 
 // ── Paletas ────────────────────────────────────────────────────────────────
 const PALETA = [
@@ -422,6 +444,9 @@ function renderTodo(d){
   var pctRad = d.total_candidatos>0 ? (d.radicaron/d.total_candidatos*100).toFixed(1)+'%' : '—';
   document.getElementById('kpi-pct-rad').textContent = pctRad;
   document.getElementById('kpi-dptos').textContent = fmtNum(Object.keys(d.por_dpto||{}).length);
+  // Ingresos y gastos totales Colombia
+  document.getElementById('kpi-ingresos').textContent = d.total_ingresos > 0 ? fmtCOP(d.total_ingresos) : '—';
+  document.getElementById('kpi-gastos').textContent   = d.total_gastos   > 0 ? fmtCOP(d.total_gastos)   : '—';
   if(d._generado) document.getElementById('nav-generado').textContent='Generado: '+d._generado;
 
   // Alertas
