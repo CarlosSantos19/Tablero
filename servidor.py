@@ -600,6 +600,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._handle_cc_exportar_dictamen()
             elif path == "/api/pagos_partido":
                 self._handle_pagos_partido()
+            elif path == "/api/presupuesto":
+                self._handle_presupuesto()
             else:
                 super().do_GET()
         except Exception as e:
@@ -2158,6 +2160,85 @@ class Handler(SimpleHTTPRequestHandler):
                            "val_reconocido": r[4] or 0, "val_auditoria": r[5] or 0,
                            "val_neto": r[6] or 0,
                            "resoluciones": r[7] or "", "ultima_fecha_pago": r[8] or ""} for r in rows]
+
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({"error": str(e)}, 500)
+
+
+    # ── /api/presupuesto ──────────────────────────────────────────────────────
+    def _handle_presupuesto(self):
+        """
+        GET /api/presupuesto?corp=&dpto=&by=corp|dpto
+        Resumen presupuestal ET2023: reconocido, pagado, pendiente, avg días revisión.
+        by=corp  → agrupa por corporación (default)
+        by=dpto  → agrupa por corporación + departamento
+        """
+        qs     = self._qs()
+        corp_f = (qs.get("corp") or "").strip().upper()
+        dpto_f = (qs.get("dpto") or "").strip().upper()
+        by     = (qs.get("by")   or "corp").strip().lower()
+
+        portal_dir = self.server.portal_dir if hasattr(self.server, "portal_dir") else os.getcwd()
+        db_path    = os.path.join(portal_dir, "data", "pagostres.db")
+        try:
+            import sqlite3 as _sq
+            con = _sq.connect(db_path)
+
+            params = []
+            where  = " WHERE CORPORACION IN ('ALCALDIA','GOBERNACION','ASAMBLEA','CONCEJO','JAL')"
+            if corp_f:
+                where += " AND UPPER(CORPORACION) LIKE ?"
+                params.append(f"%{corp_f}%")
+            if dpto_f:
+                where += " AND UPPER(DEPARTAMENTO) LIKE ?"
+                params.append(f"%{dpto_f}%")
+
+            if by == "dpto":
+                group_cols = "CORPORACION, DEPARTAMENTO"
+                select_extra = ", DEPARTAMENTO"
+            else:
+                group_cols   = "CORPORACION"
+                select_extra = ""
+
+            sql = f"""
+                SELECT
+                    CORPORACION{select_extra},
+                    COUNT(*) AS registros,
+                    SUM(VALOR_RECONOCIDO)  AS total_reconocido,
+                    SUM(VALOR_AUDITORIA)   AS total_auditoria,
+                    SUM(VALOR_NETO_GIRADO) AS total_neto,
+                    SUM(CASE WHEN FECHA_PAGO IS NOT NULL AND FECHA_PAGO != '' THEN VALOR_NETO_GIRADO ELSE 0 END) AS pagado,
+                    SUM(CASE WHEN FECHA_PAGO IS NULL  OR  FECHA_PAGO  = '' THEN VALOR_RECONOCIDO   ELSE 0 END) AS pendiente,
+                    COUNT(CASE WHEN FECHA_PAGO IS NOT NULL AND FECHA_PAGO != '' THEN 1 END) AS reg_pagados,
+                    COUNT(CASE WHEN FECHA_PAGO IS  NULL  OR  FECHA_PAGO  = '' THEN 1 END)  AS reg_pendientes,
+                    ROUND(AVG(CASE WHEN FECHA_PAGO IS NOT NULL AND FECHA_PAGO != ''
+                                        AND FECHA_RECONOCIMIENTO IS NOT NULL AND FECHA_RECONOCIMIENTO != ''
+                                   THEN julianday(FECHA_PAGO) - julianday(FECHA_RECONOCIMIENTO)
+                              END), 1) AS avg_dias_revision,
+                    MIN(FECHA_RECONOCIMIENTO) AS primera_reconoc,
+                    MAX(FECHA_PAGO)           AS ultimo_pago
+                FROM pagos_elecciones{where}
+                GROUP BY {group_cols}
+                ORDER BY total_reconocido DESC
+            """
+            rows = con.execute(sql, params).fetchall()
+            con.close()
+
+            if by == "dpto":
+                result = [{"corp": r[0], "dpto": r[1] or "", "registros": r[2],
+                           "total_reconocido": r[3] or 0, "total_auditoria": r[4] or 0,
+                           "total_neto": r[5] or 0, "pagado": r[6] or 0,
+                           "pendiente": r[7] or 0, "reg_pagados": r[8], "reg_pendientes": r[9],
+                           "avg_dias": r[10], "primera_reconoc": r[11] or "",
+                           "ultimo_pago": r[12] or ""} for r in rows]
+            else:
+                result = [{"corp": r[0], "registros": r[1],
+                           "total_reconocido": r[2] or 0, "total_auditoria": r[3] or 0,
+                           "total_neto": r[4] or 0, "pagado": r[5] or 0,
+                           "pendiente": r[6] or 0, "reg_pagados": r[7], "reg_pendientes": r[8],
+                           "avg_dias": r[9], "primera_reconoc": r[10] or "",
+                           "ultimo_pago": r[11] or ""} for r in rows]
 
             self._send_json(result)
         except Exception as e:

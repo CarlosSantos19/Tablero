@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Presupuesto ET2023 — FNFPCE</title>
+  <link rel="stylesheet" href="vendor/css/bootstrap.min.css"/>
+  <link rel="stylesheet" href="css/cne-theme.css"/>
+  <link rel="stylesheet" href="vendor/css/all.min.css"/>
+  <style>
+    /* ── KPI cards ─────────────────────────────── */
+    .kpi-card { border-radius:12px; padding:.9rem 1.1rem; color:#fff; display:flex; align-items:center; gap:.8rem; }
+    .kpi-card .icon { font-size:1.4rem; opacity:.8; }
+    .kpi-card .val  { font-size:1.1rem; font-weight:700; line-height:1.1; }
+    .kpi-card .lbl  { font-size:.64rem; opacity:.8; text-transform:uppercase; letter-spacing:.05em; }
+    .kpi-blue   { background:linear-gradient(135deg,#003478,#1565c0); }
+    .kpi-green  { background:linear-gradient(135deg,#1b5e20,#2e7d32); }
+    .kpi-red    { background:linear-gradient(135deg,#b71c1c,#c62828); }
+    .kpi-orange { background:linear-gradient(135deg,#e65100,#f57c00); }
+    .kpi-purple { background:linear-gradient(135deg,#4a148c,#6a1b9a); }
+    .kpi-teal   { background:linear-gradient(135deg,#00695c,#00897b); }
+
+    /* ── Section card ──────────────────────────── */
+    .section-card {
+      background:rgba(4,20,50,.85);
+      border:1px solid rgba(252,209,22,.18);
+      border-radius:12px;
+      padding:1.2rem 1.4rem;
+      margin-bottom:1.2rem;
+    }
+    .section-title {
+      font-family:'Orbitron',monospace;
+      font-size:.75rem;
+      font-weight:700;
+      color:#FCD116;
+      border-bottom:1px solid rgba(252,209,22,.22);
+      padding-bottom:.4rem;
+      margin-bottom:1rem;
+      letter-spacing:.08em;
+    }
+
+    /* ── Filtros ───────────────────────────────── */
+    .form-control, .form-select {
+      background:rgba(4,20,50,.9) !important;
+      border:1px solid rgba(252,209,22,.25) !important;
+      color:#e0f4ff !important;
+      font-size:.82rem;
+    }
+    .form-control::placeholder { color:rgba(224,244,255,.4) !important; }
+    .form-control:focus, .form-select:focus {
+      border-color:rgba(252,209,22,.55) !important;
+      box-shadow:0 0 0 .15rem rgba(252,209,22,.15) !important;
+    }
+    .form-select option { background:#04101e; }
+
+    /* ── Corp card ─────────────────────────────── */
+    .corp-card {
+      background:rgba(4,20,50,.9);
+      border:1px solid rgba(252,209,22,.18);
+      border-radius:12px;
+      padding:1.1rem 1.3rem;
+      height:100%;
+      transition:border-color .2s;
+      cursor:pointer;
+    }
+    .corp-card:hover { border-color:rgba(252,209,22,.5); }
+    .corp-card.active { border-color:#FCD116; background:rgba(0,56,147,.25); }
+    .corp-name {
+      font-family:'Orbitron',monospace;
+      font-size:.78rem;
+      font-weight:700;
+      color:#FCD116;
+      letter-spacing:.06em;
+      margin-bottom:.6rem;
+    }
+    .corp-stat { display:flex; justify-content:space-between; align-items:center; margin-bottom:.25rem; }
+    .corp-stat .s-lbl { font-size:.7rem; color:rgba(224,244,255,.6); }
+    .corp-stat .s-val { font-size:.78rem; font-weight:600; }
+    .s-rec  { color:#64b5f6; }
+    .s-pag  { color:#a5d6a7; }
+    .s-pen  { color:#ffcc80; }
+    .s-aud  { color:#ef9a9a; }
+
+    /* ── Progress bar ──────────────────────────── */
+    .progress { height:10px; background:rgba(255,255,255,.08); border-radius:5px; overflow:hidden; margin:.5rem 0 .3rem; }
+    .progress-bar-pag  { background:linear-gradient(90deg,#2e7d32,#43a047); height:100%; border-radius:5px; transition:width .6s ease; }
+    .progress-pct { font-size:.72rem; font-weight:700; text-align:right; }
+
+    /* ── Días badge ────────────────────────────── */
+    .dias-badge {
+      display:inline-block;
+      background:rgba(252,209,22,.1);
+      border:1px solid rgba(252,209,22,.3);
+      border-radius:20px;
+      padding:2px 10px;
+      font-size:.72rem;
+      color:#FCD116;
+      font-weight:600;
+      margin-top:.4rem;
+    }
+    .regs-badge {
+      display:inline-block;
+      font-size:.68rem;
+      color:rgba(224,244,255,.5);
+      margin-left:.4rem;
+    }
+
+    /* ── Tabla detalle ─────────────────────────── */
+    .tabla-wrap { overflow-x:auto; border-radius:8px; border:1px solid rgba(252,209,22,.12); }
+    #tabla-det { font-size:.78rem; }
+    #tabla-det thead th {
+      background:rgba(0,56,147,.55) !important;
+      color:#FCD116 !important;
+      border-bottom:1px solid rgba(252,209,22,.3) !important;
+      white-space:nowrap;
+      font-family:'Orbitron',monospace;
+      font-size:.65rem;
+      letter-spacing:.04em;
+      padding:.6rem .7rem;
+      position:sticky;
+      top:0;
+    }
+    #tabla-det tbody tr { background:#fff; border-bottom:1px solid #e0e6f0; }
+    #tabla-det tbody tr:hover { background:#eef2ff !important; }
+    #tabla-det tbody td { padding:.55rem .7rem; color:#1a2540; vertical-align:middle; }
+    #tabla-det tfoot td {
+      background:rgba(0,56,147,.35) !important;
+      color:#FCD116 !important;
+      font-weight:700;
+      border-top:1px solid rgba(252,209,22,.3) !important;
+      font-size:.8rem;
+    }
+    .money { text-align:right; font-variant-numeric:tabular-nums; }
+    .money.rec  { color:#1565c0; font-weight:600; }
+    .money.pag  { color:#1a7a4a; font-weight:700; }
+    .money.pen  { color:#e65100; font-weight:600; }
+    .money.aud  { color:#c0392b; }
+
+    .mini-bar-wrap { display:flex; align-items:center; gap:6px; }
+    .mini-bar { flex:1; height:6px; background:#e0e6f0; border-radius:3px; overflow:hidden; }
+    .mini-bar-fill { height:100%; background:#43a047; border-radius:3px; }
+    .mini-pct { font-size:.68rem; font-weight:700; color:#1a7a4a; min-width:32px; text-align:right; }
+
+    .corp-badge-tbl {
+      display:inline-block;
+      border-radius:10px;
+      padding:2px 8px;
+      font-size:.7rem;
+      font-weight:700;
+      color:#fff;
+    }
+    .cb-ALCALDIA    { background:#1565c0; }
+    .cb-GOBERNACION { background:#6a1b9a; }
+    .cb-ASAMBLEA    { background:#00695c; }
+    .cb-CONCEJO     { background:#c0392b; }
+    .cb-JAL         { background:#e65100; }
+
+    .pend-badge {
+      display:inline-block;
+      background:#fff3e0;
+      border:1px solid #ffcc80;
+      border-radius:10px;
+      padding:1px 7px;
+      font-size:.68rem;
+      color:#e65100;
+      font-weight:600;
+    }
+
+    .spinner-wrap { text-align:center; padding:3rem; color:rgba(224,244,255,.5); }
+    #loading-bar { height:2px; background:#FCD116; position:fixed; top:0; left:0; transition:width .3s; z-index:9999; }
+
+    /* ── Vista toggle ──────────────────────────── */
+    .btn-vista {
+      background:rgba(4,20,50,.8);
+      border:1px solid rgba(252,209,22,.25);
+      color:rgba(224,244,255,.7);
+      font-size:.78rem;
+      padding:.45rem 1rem;
+      border-radius:5px;
+      cursor:pointer;
+      transition:all .2s;
+    }
+    .btn-vista:hover { border-color:rgba(252,209,22,.5); color:#FCD116; }
+    .btn-vista.active { background:rgba(252,209,22,.18); border-color:#FCD116; color:#FCD116; font-weight:600; }
+  </style>
+</head>
+<body>
+<div id="loading-bar" style="width:0%"></div>
+
+<nav class="navbar navbar-dark px-3 py-2">
+  <a class="navbar-brand" href="javascript:history.back()">
+    <i class="fa fa-arrow-left me-2"></i>Presupuesto ET2023
+  </a>
+  <span class="navbar-text ms-auto">
+    <i class="fa fa-chart-pie me-1"></i>Seguimiento Pagos · pagostres.db
+  </span>
+</nav>
+
+<div class="container-fluid px-3 py-3">
+
+  <!-- KPI globales -->
+  <div class="row g-2 mb-3" id="kpi-row">
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-blue h-100">
+        <div class="icon"><i class="fa fa-check-circle"></i></div>
+        <div><div class="val" id="g-reconocido">—</div><div class="lbl">Total Reconocido</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-green h-100">
+        <div class="icon"><i class="fa fa-money-bill-wave"></i></div>
+        <div><div class="val" id="g-pagado">—</div><div class="lbl">Total Pagado</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-orange h-100">
+        <div class="icon"><i class="fa fa-clock"></i></div>
+        <div><div class="val" id="g-pendiente">—</div><div class="lbl">Pendiente</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-purple h-100">
+        <div class="icon"><i class="fa fa-percentage"></i></div>
+        <div><div class="val" id="g-pct">—</div><div class="lbl">% Ejecutado</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-teal h-100">
+        <div class="icon"><i class="fa fa-calendar-check"></i></div>
+        <div><div class="val" id="g-dias">—</div><div class="lbl">Promedio Revisión (días)</div></div>
+      </div>
+    </div>
+    <div class="col-6 col-md-4 col-lg">
+      <div class="kpi-card kpi-red h-100">
+        <div class="icon"><i class="fa fa-list-ol"></i></div>
+        <div><div class="val" id="g-registros">—</div><div class="lbl">Registros Totales</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filtros -->
+  <div class="section-card">
+    <div class="section-title"><i class="fa fa-filter me-2"></i>Filtros</div>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-5">
+        <label class="form-label small mb-1" style="color:rgba(224,244,255,.6)">Departamento</label>
+        <input type="text" class="form-control form-control-sm" id="f-dpto" placeholder="Ej: CUNDINAMARCA, MAGDALENA…"/>
+      </div>
+      <div class="col-12 col-md-4">
+        <label class="form-label small mb-1" style="color:rgba(224,244,255,.6)">Corporación</label>
+        <select class="form-select form-select-sm" id="f-corp">
+          <option value="">Todas</option>
+          <option>ALCALDIA</option><option>GOBERNACION</option>
+          <option>ASAMBLEA</option><option>CONCEJO</option><option>JAL</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-3 d-flex gap-2">
+        <button class="btn btn-sm btn-warning fw-bold flex-fill" onclick="cargar()">
+          <i class="fa fa-search me-1"></i>Aplicar
+        </button>
+        <button class="btn btn-sm btn-outline-secondary flex-fill" onclick="limpiar()">
+          <i class="fa fa-times me-1"></i>Limpiar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cards por corporación -->
+  <div class="section-card">
+    <div class="section-title"><i class="fa fa-building me-2"></i>Estado por Corporación</div>
+    <div class="row g-3" id="corp-cards">
+      <div class="col-12 text-center py-4">
+        <div class="spinner-border text-warning" style="width:2rem;height:2rem"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vista de detalle -->
+  <div class="d-flex gap-2 mb-2 align-items-center flex-wrap">
+    <button class="btn-vista active" id="btn-por-corp" onclick="setVista('corp')">
+      <i class="fa fa-layer-group me-1"></i>Por Corporación
+    </button>
+    <button class="btn-vista" id="btn-por-dpto" onclick="setVista('dpto')">
+      <i class="fa fa-map-marker-alt me-1"></i>Por Corp + Departamento
+    </button>
+    <div class="ms-auto">
+      <button class="btn btn-sm btn-outline-success" onclick="exportarCSV()">
+        <i class="fa fa-file-csv me-1"></i>CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Tabla detalle -->
+  <div class="section-card p-0">
+    <div class="spinner-wrap" id="spinner-det">
+      <div class="spinner-border text-warning mb-2" style="width:2rem;height:2rem"></div>
+    </div>
+    <div id="error-msg" class="text-danger p-3 text-center" style="display:none"></div>
+    <div class="tabla-wrap" id="tabla-wrap" style="display:none">
+      <table class="table table-borderless mb-0" id="tabla-det">
+        <thead id="thead-det"></thead>
+        <tbody id="tbody-det"></tbody>
+        <tfoot id="tfoot-det"></tfoot>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let vista = 'corp';
+let datosCorp = [];
+let datosDpto = [];
+
+const CORP_COLOR = {
+  ALCALDIA:    '#1565c0',
+  GOBERNACION: '#6a1b9a',
+  ASAMBLEA:    '#00695c',
+  CONCEJO:     '#c0392b',
+  JAL:         '#e65100',
+};
+
+function fmt(n) { return '$' + Math.round(n).toLocaleString('es-CO'); }
+function fmtK(n) {
+  if (n >= 1e9) return '$' + (n/1e9).toFixed(1) + 'B';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  return '$' + Math.round(n).toLocaleString('es-CO');
+}
+function pct(a, b) { return b > 0 ? Math.min(100, Math.round(a / b * 100)) : 0; }
+function setBar(p) { document.getElementById('loading-bar').style.width = p + '%'; }
+
+function limpiar() {
+  document.getElementById('f-dpto').value = '';
+  document.getElementById('f-corp').value = '';
+  cargar();
+}
+
+function setVista(v) {
+  vista = v;
+  document.getElementById('btn-por-corp').classList.toggle('active', v === 'corp');
+  document.getElementById('btn-por-dpto').classList.toggle('active', v === 'dpto');
+  renderTabla();
+}
+
+async function cargar() {
+  setBar(20);
+  const dpto = document.getElementById('f-dpto').value.trim();
+  const corp = document.getElementById('f-corp').value.trim();
+  const base  = (dpto ? `&dpto=${encodeURIComponent(dpto)}` : '') +
+                (corp ? `&corp=${encodeURIComponent(corp)}` : '');
+
+  document.getElementById('spinner-det').style.display = '';
+  document.getElementById('tabla-wrap').style.display  = 'none';
+  document.getElementById('error-msg').style.display   = 'none';
+
+  try {
+    setBar(40);
+    const [rCorp, rDpto] = await Promise.all([
+      fetch(`/api/presupuesto?by=corp${base}`).then(r => r.json()),
+      fetch(`/api/presupuesto?by=dpto${base}`).then(r => r.json()),
+    ]);
+    if (rCorp.error) throw new Error(rCorp.error);
+    datosCorp = rCorp;
+    datosDpto = rDpto;
+    setBar(80);
+    renderKpis(rCorp);
+    renderCorpCards(rCorp);
+    renderTabla();
+    setBar(100);
+    setTimeout(() => setBar(0), 600);
+  } catch(e) {
+    setBar(0);
+    document.getElementById('spinner-det').style.display = 'none';
+    document.getElementById('error-msg').style.display   = '';
+    document.getElementById('error-msg').textContent     = 'Error: ' + e.message;
+  }
+}
+
+function renderKpis(data) {
+  const totRec = data.reduce((s,r) => s + (r.total_reconocido||0), 0);
+  const totPag = data.reduce((s,r) => s + (r.pagado||0), 0);
+  const totPen = data.reduce((s,r) => s + (r.pendiente||0), 0);
+  const totReg = data.reduce((s,r) => s + (r.registros||0), 0);
+  const avgD   = data.filter(r => r.avg_dias != null);
+  const globalAvg = avgD.length ? (avgD.reduce((s,r) => s + r.avg_dias, 0) / avgD.length).toFixed(0) : '—';
+  const pctEj  = pct(totPag, totRec);
+
+  document.getElementById('g-reconocido').textContent = fmtK(totRec);
+  document.getElementById('g-pagado').textContent     = fmtK(totPag);
+  document.getElementById('g-pendiente').textContent  = fmtK(totPen);
+  document.getElementById('g-pct').textContent        = pctEj + '%';
+  document.getElementById('g-dias').textContent       = globalAvg + (globalAvg !== '—' ? ' días' : '');
+  document.getElementById('g-registros').textContent  = totReg.toLocaleString();
+}
+
+function renderCorpCards(data) {
+  const wrap = document.getElementById('corp-cards');
+  if (!data.length) { wrap.innerHTML = '<div class="col-12 text-center text-warning py-3">Sin datos</div>'; return; }
+
+  wrap.innerHTML = data.map(r => {
+    const p      = pct(r.pagado, r.total_reconocido);
+    const color  = CORP_COLOR[r.corp] || '#888';
+    const dias   = r.avg_dias != null ? r.avg_dias + ' días prom.' : '—';
+    return `
+    <div class="col-12 col-md-6 col-xl-3">
+      <div class="corp-card">
+        <div class="corp-name" style="color:${color}">
+          <i class="fa fa-building me-2"></i>${r.corp}
+        </div>
+        <div class="corp-stat">
+          <span class="s-lbl">Reconocido</span>
+          <span class="s-val s-rec">${fmtK(r.total_reconocido)}</span>
+        </div>
+        <div class="corp-stat">
+          <span class="s-lbl">Pagado (neto)</span>
+          <span class="s-val s-pag">${fmtK(r.pagado)}</span>
+        </div>
+        <div class="corp-stat">
+          <span class="s-lbl">Pendiente</span>
+          <span class="s-val s-pen">${fmtK(r.pendiente)}</span>
+        </div>
+        <div class="corp-stat">
+          <span class="s-lbl">Auditoría (descuento)</span>
+          <span class="s-val s-aud">${fmtK(r.total_auditoria)}</span>
+        </div>
+        <div class="progress mt-2">
+          <div class="progress-bar-pag" style="width:${p}%"></div>
+        </div>
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="progress-pct" style="color:${p===100?'#a5d6a7':'#ffcc80'}">${p}% ejecutado</span>
+          <span style="font-size:.68rem;color:rgba(224,244,255,.45)">${r.reg_pagados}/${r.registros} registros</span>
+        </div>
+        <div>
+          <span class="dias-badge"><i class="fa fa-clock me-1"></i>${dias}</span>
+          ${r.reg_pendientes > 0 ? `<span class="regs-badge">(${r.reg_pendientes} pend.)</span>` : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderTabla() {
+  const thead = document.getElementById('thead-det');
+  const tbody = document.getElementById('tbody-det');
+  const tfoot = document.getElementById('tfoot-det');
+  const data  = vista === 'corp' ? datosCorp : datosDpto;
+
+  if (!data || !data.length) {
+    document.getElementById('spinner-det').style.display = 'none';
+    document.getElementById('tabla-wrap').style.display  = '';
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-4">Sin datos</td></tr>';
+    return;
+  }
+
+  if (vista === 'corp') {
+    thead.innerHTML = `<tr>
+      <th>#</th><th>Corporación</th><th>Registros</th>
+      <th class="money">Total Reconocido</th>
+      <th class="money">Auditoría</th>
+      <th class="money">Pagado</th>
+      <th class="money">Pendiente</th>
+      <th>Ejecutado</th>
+      <th>Avg Revisión</th>
+      <th>Último Pago</th>
+    </tr>`;
+    tbody.innerHTML = data.map((r,i) => {
+      const p = pct(r.pagado, r.total_reconocido);
+      return `<tr>
+        <td style="color:#999;font-size:.72rem">${i+1}</td>
+        <td><span class="corp-badge-tbl cb-${r.corp}">${r.corp}</span></td>
+        <td>${r.registros}</td>
+        <td class="money rec">${fmt(r.total_reconocido)}</td>
+        <td class="money aud">${fmt(r.total_auditoria)}</td>
+        <td class="money pag">${fmt(r.pagado)}</td>
+        <td class="money pen">${fmt(r.pendiente)}</td>
+        <td>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar"><div class="mini-bar-fill" style="width:${p}%"></div></div>
+            <span class="mini-pct">${p}%</span>
+          </div>
+        </td>
+        <td style="text-align:center">${r.avg_dias != null ? r.avg_dias + ' d' : '—'}</td>
+        <td style="font-size:.72rem;color:#555">${r.ultimo_pago||'—'}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    thead.innerHTML = `<tr>
+      <th>#</th><th>Corporación</th><th>Departamento</th><th>Registros</th>
+      <th class="money">Total Reconocido</th>
+      <th class="money">Auditoría</th>
+      <th class="money">Pagado</th>
+      <th class="money">Pendiente</th>
+      <th>Ejecutado</th>
+      <th>Avg Revisión</th>
+    </tr>`;
+    tbody.innerHTML = data.map((r,i) => {
+      const p = pct(r.pagado, r.total_reconocido);
+      return `<tr>
+        <td style="color:#999;font-size:.72rem">${i+1}</td>
+        <td><span class="corp-badge-tbl cb-${r.corp}">${r.corp}</span></td>
+        <td style="font-weight:600">${r.dpto||''}</td>
+        <td>${r.registros}${r.reg_pendientes > 0 ? ` <span class="pend-badge">${r.reg_pendientes} pend.</span>` : ''}</td>
+        <td class="money rec">${fmt(r.total_reconocido)}</td>
+        <td class="money aud">${fmt(r.total_auditoria)}</td>
+        <td class="money pag">${fmt(r.pagado)}</td>
+        <td class="money pen">${fmt(r.pendiente)}</td>
+        <td>
+          <div class="mini-bar-wrap">
+            <div class="mini-bar"><div class="mini-bar-fill" style="width:${p}%"></div></div>
+            <span class="mini-pct">${p}%</span>
+          </div>
+        </td>
+        <td style="text-align:center">${r.avg_dias != null ? r.avg_dias + ' d' : '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  // Totales
+  const totRec = data.reduce((s,r) => s + (r.total_reconocido||0), 0);
+  const totAud = data.reduce((s,r) => s + (r.total_auditoria||0), 0);
+  const totPag = data.reduce((s,r) => s + (r.pagado||0), 0);
+  const totPen = data.reduce((s,r) => s + (r.pendiente||0), 0);
+  const p      = pct(totPag, totRec);
+  const cols   = vista === 'corp' ? 3 : 4;
+  tfoot.innerHTML = `<tr>
+    <td colspan="${cols}">TOTAL — ${data.length} filas</td>
+    <td class="money rec">${fmt(totRec)}</td>
+    <td class="money aud">${fmt(totAud)}</td>
+    <td class="money pag">${fmt(totPag)}</td>
+    <td class="money pen">${fmt(totPen)}</td>
+    <td colspan="2">${p}% ejecutado</td>
+  </tr>`;
+
+  document.getElementById('spinner-det').style.display = 'none';
+  document.getElementById('tabla-wrap').style.display  = '';
+}
+
+function exportarCSV() {
+  const data = vista === 'corp' ? datosCorp : datosDpto;
+  if (!data.length) return;
+  const keys = Object.keys(data[0]);
+  const rows = [keys.join(','), ...data.map(r => keys.map(k => JSON.stringify(r[k]??'')).join(','))];
+  const blob = new Blob([rows.join('\n')], {type:'text/csv;charset=utf-8;'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = `presupuesto_et2023_${vista}.csv`;
+  a.click();
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Enter') cargar(); });
+cargar();
+</script>
+</body>
+</html>
