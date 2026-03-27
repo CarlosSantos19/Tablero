@@ -602,6 +602,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._handle_pagos_partido()
             elif path == "/api/presupuesto":
                 self._handle_presupuesto()
+            elif path == "/api/explorador":
+                self._handle_explorador()
             else:
                 super().do_GET()
         except Exception as e:
@@ -2243,6 +2245,145 @@ class Handler(SimpleHTTPRequestHandler):
             self._send_json(result)
         except Exception as e:
             self._send_json({"error": str(e)}, 500)
+
+
+    # ── /api/explorador ───────────────────────────────────────────────────────
+    def _handle_explorador(self):
+        """
+        GET /api/explorador
+        Devuelve todos los registros de pagostres.db enriquecidos con datos de
+        Cuentas Claras (candidatos, reportaron, ingreso CC, gasto CC).
+        El frontend construye el árbol: Corp → Dpto → Municipio → Partido.
+        """
+        import unicodedata, re as _re
+
+        def _norm(s):
+            if not s:
+                return ''
+            s = s.upper().strip()
+            try:
+                s = unicodedata.normalize('NFD', s)
+                s = ''.join(c for c in s if unicodedata.category(c) != 'Mn')
+            except Exception:
+                pass
+            return _re.sub(r'\s+', ' ', s)
+
+        portal_dir = self.server.portal_dir if hasattr(self.server, 'portal_dir') else os.getcwd()
+        db_path    = os.path.join(portal_dir, 'data', 'pagostres.db')
+
+        try:
+            import sqlite3 as _sq, json as _json
+
+            # ── 1. Cargar pagostres ──────────────────────────────────────────
+            con  = _sq.connect(db_path)
+            rows = con.execute("""
+                SELECT NO, CORPORACION, DEPARTAMENTO, MUNICIPIO, PARTIDO_MOVIMIENTO,
+                       VALOR_RECONOCIDO, VALOR_AUDITORIA, VALOR_NETO_GIRADO,
+                       RES_RECONOCIMIENTO, FECHA_RECONOCIMIENTO, RES_PAGO, FECHA_PAGO
+                FROM pagos_elecciones
+                ORDER BY CORPORACION, DEPARTAMENTO, MUNICIPIO, PARTIDO_MOVIMIENTO
+            """).fetchall()
+            con.close()
+
+            # ── 2. Construir lookup de Cuentas Claras ────────────────────────
+            cc_lookup = {}   # (corp_norm, dpto_norm, partido_norm) → {candidatos, reportaron, ingreso, gasto}
+
+            CORP_ID_MAP = {3: 'ALCALDIA', 6: 'CONCEJO', 2: 'GOBERNACION',
+                           5: 'ASAMBLEA', 7: 'JAL', 1: 'GOBERNACION', 4: 'ASAMBLEA'}
+            try:
+                fin_path = os.path.join(portal_dir, 'data', 'cc_financiero.json')
+                idx_path = os.path.join(portal_dir, 'data', 'cuentas_claras_index.json')
+                with open(fin_path, encoding='utf-8') as f:
+                    cc_fin = _json.load(f)
+                with open(idx_path, encoding='utf-8') as f:
+                    cc_idx = _json.load(f)
+
+                # (tipo_id, org_id, corp_id, circ_id) → (corp_norm, dpto_norm, partido_norm)
+                key_map   = {}
+                cand_cnt  = {}   # (corp_n, dpto_n, partido_n) → int
+
+                for dpto_nom, dpto in cc_idx.items():
+                    dn = _norm(dpto_nom)
+                    for muni_nom, muni in dpto.get('municipios', {}).items():
+                        for cand in muni.get('candidatos', []):
+                            ti  = cand.get('tipo_id', 0)
+                            oi  = cand.get('org_id', 0)
+                            ci  = cand.get('corp_id', 0)
+                            circ = cand.get('circ_id', 0)
+                            corp_n   = CORP_ID_MAP.get(ci, str(ci))
+                            partido_n = _norm(cand.get('org', ''))
+                            k = (ti, oi, ci, circ)
+                            if k not in key_map:
+                                key_map[k] = (corp_n, dn, partido_n)
+                            agg = (corp_n, dn, partido_n)
+                            cand_cnt[agg] = cand_cnt.get(agg, 0) + 1
+
+                # Agregar cc_financiero
+                fin_agg = {}   # (corp_n, dpto_n, partido_n) → {ingreso, gasto, reportaron}
+                for fk, fv in cc_fin.items():
+                    parts = fk.split('|')
+                    if len(parts) < 4:
+                        continue
+                    try:
+                        k = (int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3]))
+                    except Exception:
+                        continue
+                    if k not in key_map:
+                        continue
+                    agg = key_map[k]
+                    if agg not in fin_agg:
+                        fin_agg[agg] = {'ingreso': 0.0, 'gasto': 0.0, 'reportaron': 0}
+                    fin_agg[agg]['ingreso']   += fv.get('total_ingreso', 0) or 0
+                    fin_agg[agg]['gasto']     += fv.get('total_gasto',   0) or 0
+                    if fv.get('envio_informe'):
+                        fin_agg[agg]['reportaron'] += 1
+
+                # Unificar
+                for agg, cnt in cand_cnt.items():
+                    fin = fin_agg.get(agg, {'ingreso': 0, 'gasto': 0, 'reportaron': 0})
+                    cc_lookup[agg] = {
+                        'candidatos': cnt,
+                        'reportaron': fin['reportaron'],
+                        'cc_ingreso': round(fin['ingreso'], 2),
+                        'cc_gasto':   round(fin['gasto'],   2),
+                    }
+            except Exception:
+                pass   # Si no hay CC, continúa solo con pagostres
+
+            # ── 3. Enriquecer registros ──────────────────────────────────────
+            result = []
+            for r in rows:
+                corp   = r[1] or ''
+                dpto   = r[2] or ''
+                muni   = r[3] or ''
+                partido = r[4] or ''
+
+                agg = (_norm(corp), _norm(dpto), _norm(partido))
+                cc  = cc_lookup.get(agg, {})
+
+                result.append({
+                    'no':                  r[0],
+                    'corp':                corp,
+                    'dpto':                dpto,
+                    'muni':                muni,
+                    'partido':             partido,
+                    'val_reconocido':      r[5] or 0,
+                    'val_auditoria':       r[6] or 0,
+                    'val_neto':            r[7] or 0,
+                    'res_reconocimiento':  r[8]  or '',
+                    'fecha_reconocimiento': r[9] or '',
+                    'res_pago':            r[10] or '',
+                    'fecha_pago':          r[11] or '',
+                    'pagado':              bool(r[11]),
+                    'cc_candidatos':       cc.get('candidatos', 0),
+                    'cc_reportaron':       cc.get('reportaron', 0),
+                    'cc_ingreso':          cc.get('cc_ingreso', 0),
+                    'cc_gasto':            cc.get('cc_gasto',   0),
+                })
+
+            self._send_json(result)
+        except Exception as e:
+            self._send_json({'error': str(e)}, 500)
 
 
 # ── Servidor multi-hilo ───────────────────────────────────────────────────────
