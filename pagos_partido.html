@@ -83,9 +83,9 @@
       position:sticky;
       top:0;
     }
-    #tabla tbody tr { border-bottom:1px solid rgba(252,209,22,.07); }
-    #tabla tbody tr:hover { background:rgba(0,56,147,.25) !important; }
-    #tabla tbody td { padding:.6rem .75rem; color:#e0f4ff; vertical-align:middle; }
+    #tabla tbody tr { border-bottom:1px solid #d0d7e2; background:#fff; }
+    #tabla tbody tr:hover { background:#eef2ff !important; }
+    #tabla tbody td { padding:.6rem .75rem; color:#1a2540; vertical-align:middle; }
     #tabla tfoot td {
       background:rgba(0,56,147,.35) !important;
       color:#FCD116 !important;
@@ -95,9 +95,9 @@
     }
 
     .money { text-align:right; font-variant-numeric:tabular-nums; }
-    .money.rec  { color:#64b5f6; font-weight:600; }
-    .money.aud  { color:#ef9a9a; }
-    .money.neto { color:#a5d6a7; font-weight:700; }
+    .money.rec  { color:#1565c0; font-weight:600; }
+    .money.aud  { color:#c0392b; }
+    .money.neto { color:#1a7a4a; font-weight:700; }
 
     .partido-badge {
       display:inline-block;
@@ -139,7 +139,7 @@
     #loading-bar { height:2px; background:#FCD116; position:fixed; top:0; left:0; transition:width .3s; z-index:9999; }
 
     .tabla-wrap { overflow-x:auto; border-radius:8px; border:1px solid rgba(252,209,22,.12); }
-    .row-num { color:rgba(224,244,255,.35); font-size:.72rem; }
+    .row-num { color:#999; font-size:.72rem; }
   </style>
 </head>
 <body>
@@ -356,14 +356,14 @@ function renderTabla(data) {
       <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
       <td><span class="corp-badge">${r.corp||''}</span></td>
       <td style="font-weight:600">${r.dpto||''}</td>
-      <td style="font-size:.72rem;color:rgba(224,244,255,.55)">${r.municipio||''}</td>
+      <td style="font-size:.72rem;color:#666">${r.municipio||''}</td>
       <td class="money rec">${fmt(r.val_reconocido)}</td>
       <td class="money aud">${fmt(r.val_auditoria)}</td>
       <td class="money neto">${fmt(r.val_neto)}</td>
       <td>${r.res_reconocimiento ? `<span class="res-badge">${r.res_reconocimiento}</span>` : '—'}</td>
-      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.fecha_reconocimiento||'—'}</td>
+      <td style="font-size:.75rem;color:#555">${r.fecha_reconocimiento||'—'}</td>
       <td>${r.res_pago ? `<span class="res-badge">${r.res_pago}</span>` : '—'}</td>
-      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.fecha_pago||'—'}</td>
+      <td style="font-size:.75rem;color:#555">${r.fecha_pago||'—'}</td>
     </tr>`).join('');
     const totRec = data.reduce((s,r)=>s+(r.val_reconocido||0),0);
     const totAud = data.reduce((s,r)=>s+(r.val_auditoria||0),0);
@@ -394,12 +394,12 @@ function renderTabla(data) {
     tbody.innerHTML = data.map((r,i) => `<tr>
       <td class="row-num">${i+1}</td>
       <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
-      <td style="color:rgba(224,244,255,.7)">${r.registros}</td>
+      <td style="color:#1a2540">${r.registros}</td>
       <td class="money rec">${fmt(r.val_reconocido)}</td>
       <td class="money aud">${fmt(r.val_auditoria)}</td>
       <td class="money neto">${fmt(r.val_neto)}</td>
-      <td style="font-size:.72rem;color:rgba(224,244,255,.55)">${(r.corporaciones||'').replace(/,/g,', ')}</td>
-      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.ultima_fecha_pago||''}</td>
+      <td style="font-size:.72rem;color:#666">${(r.corporaciones||'').replace(/,/g,', ')}</td>
+      <td style="font-size:.75rem;color:#555">${r.ultima_fecha_pago||''}</td>
     </tr>`).join('');
     const totRec = data.reduce((s,r)=>s+(r.val_reconocido||0),0);
     const totAud = data.reduce((s,r)=>s+(r.val_auditoria||0),0);
@@ -428,13 +428,13 @@ function renderTabla(data) {
       <td class="row-num">${i+1}</td>
       <td><span class="partido-badge" title="${r.partido}">${r.partido}</span></td>
       <td><span class="corp-badge">${r.corp||''}</span></td>
-      <td style="font-weight:600">${r.dpto||''}</td>
-      <td style="color:rgba(224,244,255,.7)">${r.registros}</td>
+      <td style="font-weight:600;color:#1a2540">${r.dpto||''}</td>
+      <td style="color:#1a2540">${r.registros}</td>
       <td class="money rec">${fmt(r.val_reconocido)}</td>
       <td class="money aud">${fmt(r.val_auditoria)}</td>
       <td class="money neto">${fmt(r.val_neto)}</td>
       <td>${r.resoluciones ? `<span class="res-badge">${r.resoluciones}</span>` : ''}</td>
-      <td style="font-size:.75rem;color:rgba(224,244,255,.6)">${r.ultima_fecha_pago||''}</td>
+      <td style="font-size:.75rem;color:#555">${r.ultima_fecha_pago||''}</td>
     </tr>`).join('');
     const totRec = data.reduce((s,r)=>s+(r.val_reconocido||0),0);
     const totAud = data.reduce((s,r)=>s+(r.val_auditoria||0),0);
