@@ -2418,151 +2418,22 @@ class Handler(SimpleHTTPRequestHandler):
 
     # ── /api/presupuesto_full ─────────────────────────────────────────────────
     def _handle_presupuesto_full(self):
-        """
-        GET /api/presupuesto_full?corp=ALCALDIA&dpto=&partido=&q=
-        Cruza cc_por_partido.json con pagostres.db.
-        Devuelve: {totales, por_corp:{ALCALDIA:{cc_ing,cc_gas,pagos_rec,pagos_neto,registros}, ...},
-                   detalle:[{corp,dpto,mun,partido,cc_ing,cc_gas,val_rec,val_aud,val_neto,pagado}]}
-        """
-        import sqlite3 as _sq
+        """Sirve data/presupuesto_full.json pre-generado (lectura directa, sin procesamiento)."""
         portal_dir = self.server.portal_dir if hasattr(self.server, 'portal_dir') else os.getcwd()
-        cc_path = os.path.join(portal_dir, 'data', 'cc_por_partido.json')
-        db_path = os.path.join(portal_dir, 'data', 'pagostres.db')
-
-        qs       = self._qs()
-        f_corp   = (qs.get('corp')    or '').upper().strip()
-        f_dpto   = (qs.get('dpto')    or '').upper().strip()
-        f_partido= (qs.get('partido') or '').upper().strip()
-        f_q      = (qs.get('q')       or '').upper().strip()
-
-        def _rn(s):
-            s = unicodedata.normalize('NFD', str(s or '').upper().strip())
-            return ''.join(c for c in s if unicodedata.category(c) != 'Mn')
-
+        path = os.path.join(portal_dir, 'data', 'presupuesto_full.json')
+        if not os.path.exists(path):
+            return self._send_error_json('presupuesto_full.json no encontrado', 404)
         try:
-            # ── Cargar CC por partido ────────────────────────────────────────
-            cc_rows = []
-            if os.path.exists(cc_path):
-                with open(cc_path, encoding='utf-8') as f:
-                    cc_rows = json.load(f)
-
-            # índice: (corp_norm, dpto_norm, mun_norm, partido_norm) → {ingreso, gasto}
-            cc_idx = {}
-            for r in cc_rows:
-                key = (_rn(r['corp']), _rn(r['dpto']), _rn(r['mun']), _rn(r['partido']))
-                cc_idx[key] = {'ingreso': r.get('ingreso', 0), 'gasto': r.get('gasto', 0), 'n': r.get('n', 0)}
-
-            # ── Cargar pagostres ─────────────────────────────────────────────
-            pagos_rows = []
-            if os.path.exists(db_path):
-                con = _sq.connect(db_path)
-                rows = con.execute("""
-                    SELECT CORPORACION, DEPARTAMENTO, MUNICIPIO, PARTIDO_MOVIMIENTO,
-                           VALOR_RECONOCIDO, VALOR_AUDITORIA, VALOR_NETO_GIRADO,
-                           FECHA_PAGO
-                    FROM pagos_elecciones
-                    ORDER BY CORPORACION, DEPARTAMENTO, MUNICIPIO, PARTIDO_MOVIMIENTO
-                """).fetchall()
-                con.close()
-                for r in rows:
-                    pagos_rows.append({
-                        'corp':    (r[0] or '').upper().strip(),
-                        'dpto':    (r[1] or '').upper().strip(),
-                        'mun':     (r[2] or '').upper().strip(),
-                        'partido': (r[3] or '').upper().strip(),
-                        'val_rec': r[4] or 0,
-                        'val_aud': r[5] or 0,
-                        'val_neto': r[6] or 0,
-                        'pagado':  bool(r[7]),
-                    })
-
-            # ── Construir índice pagos por (corp,dpto,mun,partido) ───────────
-            pagos_idx = {}
-            for r in pagos_rows:
-                key = (_rn(r['corp']), _rn(r['dpto']), _rn(r['mun']), _rn(r['partido']))
-                pagos_idx[key] = r
-
-            # ── Lookup O(1): key → nombres originales ────────────────────────
-            cc_orig_idx = {}
-            for r in cc_rows:
-                key = (_rn(r['corp']), _rn(r['dpto']), _rn(r['mun']), _rn(r['partido']))
-                cc_orig_idx[key] = r   # guardar referencia directa
-
-            # ── Unir: todos los registros CC + pagos ─────────────────────────
-            all_keys = set(cc_idx.keys()) | set(pagos_idx.keys())
-
-            detalle = []
-            for key in all_keys:
-                cc      = cc_idx.get(key,    {'ingreso': 0, 'gasto': 0, 'n': 0})
-                pag     = pagos_idx.get(key, {})
-                cc_orig = cc_orig_idx.get(key, {})
-                corp    = cc_orig.get('corp')    or pag.get('corp',    '')
-                dpto    = cc_orig.get('dpto')    or pag.get('dpto',    '')
-                mun     = cc_orig.get('mun')     or pag.get('mun',     '')
-                partido = cc_orig.get('partido') or pag.get('partido', '')
-                # Filtros
-                if f_corp    and _rn(f_corp)    not in _rn(corp):    continue
-                if f_dpto    and _rn(f_dpto)    not in _rn(dpto):    continue
-                if f_partido and _rn(f_partido) not in _rn(partido): continue
-                if f_q and _rn(f_q) not in (_rn(corp)+_rn(dpto)+_rn(mun)+_rn(partido)): continue
-                detalle.append({
-                    'corp':     corp,
-                    'dpto':     dpto,
-                    'mun':      mun,
-                    'partido':  partido,
-                    'cc_ing':   round(cc.get('ingreso', 0), 2),
-                    'cc_gas':   round(cc.get('gasto',   0), 2),
-                    'cc_n':     cc.get('n', 0),
-                    'val_rec':  pag.get('val_rec',  0),
-                    'val_aud':  pag.get('val_aud',  0),
-                    'val_neto': pag.get('val_neto', 0),
-                    'pagado':   pag.get('pagado',   False),
-                })
-
-            # ── Totales globales ─────────────────────────────────────────────
-            tot_cc_ing  = sum(r['ingreso'] for r in cc_rows)
-            tot_cc_gas  = sum(r['gasto']   for r in cc_rows)
-            tot_val_rec  = sum(r['val_rec']  for r in pagos_rows)
-            tot_val_aud  = sum(r['val_aud']  for r in pagos_rows)
-            tot_val_neto = sum(r['val_neto'] for r in pagos_rows)
-
-            # ── Totales por corporación ──────────────────────────────────────
-            por_corp = {}
-            for r in cc_rows:
-                c = r['corp']
-                if c not in por_corp:
-                    por_corp[c] = {'cc_ing': 0, 'cc_gas': 0, 'val_rec': 0, 'val_aud': 0, 'val_neto': 0}
-                por_corp[c]['cc_ing'] += r.get('ingreso', 0)
-                por_corp[c]['cc_gas'] += r.get('gasto',   0)
-            for r in pagos_rows:
-                c = r['corp']
-                if c not in por_corp:
-                    por_corp[c] = {'cc_ing': 0, 'cc_gas': 0, 'val_rec': 0, 'val_aud': 0, 'val_neto': 0}
-                por_corp[c]['val_rec']  += r.get('val_rec',  0)
-                por_corp[c]['val_aud']  += r.get('val_aud',  0)
-                por_corp[c]['val_neto'] += r.get('val_neto', 0)
-
-            # Redondear por_corp
-            for c in por_corp:
-                for k in por_corp[c]:
-                    por_corp[c][k] = round(por_corp[c][k], 2)
-
-            detalle.sort(key=lambda r: (r['corp'], r['dpto'], r['mun'], r['partido']))
-
-            self._send_json({
-                'totales': {
-                    'cc_ing':   round(tot_cc_ing,   2),
-                    'cc_gas':   round(tot_cc_gas,   2),
-                    'val_rec':  round(tot_val_rec,  2),
-                    'val_aud':  round(tot_val_aud,  2),
-                    'val_neto': round(tot_val_neto, 2),
-                },
-                'por_corp':  por_corp,
-                'detalle':   detalle,
-            })
+            with open(path, encoding='utf-8') as f:
+                body = f.read().encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            self.wfile.write(body)
         except Exception as e:
-            import traceback
-            self._send_json({'error': str(e), 'trace': traceback.format_exc()}, 500)
+            self._send_error_json(str(e))
 
 
 # ── Servidor multi-hilo ───────────────────────────────────────────────────────
