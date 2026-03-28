@@ -2482,41 +2482,42 @@ class Handler(SimpleHTTPRequestHandler):
                 key = (_rn(r['corp']), _rn(r['dpto']), _rn(r['mun']), _rn(r['partido']))
                 pagos_idx[key] = r
 
-            # ── Unir: todos los registros CC + enriquecer con pagos ──────────
-            # Clave de unión: corp + dpto + mun + partido (normalizados)
+            # ── Lookup O(1): key → nombres originales ────────────────────────
+            cc_orig_idx = {}
+            for r in cc_rows:
+                key = (_rn(r['corp']), _rn(r['dpto']), _rn(r['mun']), _rn(r['partido']))
+                cc_orig_idx[key] = r   # guardar referencia directa
+
+            # ── Unir: todos los registros CC + pagos ─────────────────────────
             all_keys = set(cc_idx.keys()) | set(pagos_idx.keys())
 
             detalle = []
             for key in all_keys:
-                cc  = cc_idx.get(key,  {'ingreso': 0, 'gasto': 0, 'n': 0})
-                pag = pagos_idx.get(key, {'corp': '', 'dpto': '', 'mun': '', 'partido': '',
-                                          'val_rec': 0, 'val_aud': 0, 'val_neto': 0, 'pagado': False})
-                # Recuperar nombres originales
-                cc_orig  = next((r for r in cc_rows  if (_rn(r['corp']),_rn(r['dpto']),_rn(r['mun']),_rn(r['partido'])) == key), {})
-                pag_orig = pagos_idx.get(key, {})
-                corp    = cc_orig.get('corp')    or pag_orig.get('corp', '')
-                dpto    = cc_orig.get('dpto')    or pag_orig.get('dpto', '')
-                mun     = cc_orig.get('mun')     or pag_orig.get('mun',  '')
-                partido = cc_orig.get('partido') or pag_orig.get('partido', '')
-                row = {
-                    'corp':     corp,
-                    'dpto':     dpto,
-                    'mun':      mun,
-                    'partido':  partido,
-                    'cc_ing':   round(cc['ingreso'], 2),
-                    'cc_gas':   round(cc['gasto'],   2),
-                    'cc_n':     cc['n'],
-                    'val_rec':  pag_orig.get('val_rec',  0),
-                    'val_aud':  pag_orig.get('val_aud',  0),
-                    'val_neto': pag_orig.get('val_neto', 0),
-                    'pagado':   pag_orig.get('pagado',   False),
-                }
+                cc      = cc_idx.get(key,    {'ingreso': 0, 'gasto': 0, 'n': 0})
+                pag     = pagos_idx.get(key, {})
+                cc_orig = cc_orig_idx.get(key, {})
+                corp    = cc_orig.get('corp')    or pag.get('corp',    '')
+                dpto    = cc_orig.get('dpto')    or pag.get('dpto',    '')
+                mun     = cc_orig.get('mun')     or pag.get('mun',     '')
+                partido = cc_orig.get('partido') or pag.get('partido', '')
                 # Filtros
                 if f_corp    and _rn(f_corp)    not in _rn(corp):    continue
                 if f_dpto    and _rn(f_dpto)    not in _rn(dpto):    continue
                 if f_partido and _rn(f_partido) not in _rn(partido): continue
                 if f_q and _rn(f_q) not in (_rn(corp)+_rn(dpto)+_rn(mun)+_rn(partido)): continue
-                detalle.append(row)
+                detalle.append({
+                    'corp':     corp,
+                    'dpto':     dpto,
+                    'mun':      mun,
+                    'partido':  partido,
+                    'cc_ing':   round(cc.get('ingreso', 0), 2),
+                    'cc_gas':   round(cc.get('gasto',   0), 2),
+                    'cc_n':     cc.get('n', 0),
+                    'val_rec':  pag.get('val_rec',  0),
+                    'val_aud':  pag.get('val_aud',  0),
+                    'val_neto': pag.get('val_neto', 0),
+                    'pagado':   pag.get('pagado',   False),
+                })
 
             # ── Totales globales ─────────────────────────────────────────────
             tot_cc_ing  = sum(r['ingreso'] for r in cc_rows)
