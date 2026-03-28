@@ -243,11 +243,7 @@ let _sortAsc = true;
 const MM = 1e6;
 function fmtM(v) {
   if (!v || v === 0) return '—';
-  const abs = Math.abs(v);
-  if (abs >= 1e12) return '$' + (v/1e12).toFixed(2) + ' B';
-  if (abs >= 1e9)  return '$' + (v/1e9).toFixed(2)  + ' MM';
-  if (abs >= 1e6)  return '$' + (v/1e6).toFixed(1)  + ' M';
-  return '$' + v.toLocaleString('es-CO');
+  return '$' + Math.round(v).toLocaleString('es-CO');
 }
 function fmtN(v) { return (v||0).toLocaleString('es-CO'); }
 
@@ -365,9 +361,9 @@ function renderTabla() {
   tbody.innerHTML = _filtrados.map(r => `
     <tr>
       <td><span class="badge" style="background:rgba(252,209,22,.15);color:#FCD116;font-size:.68rem">${r.corp}</span></td>
-      <td>${r.dpto}</td>
-      <td>${r.mun}</td>
-      <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.partido}">${r.partido}</td>
+      <td style="color:#1a2540;font-weight:500">${r.dpto}</td>
+      <td style="color:#1a2540;font-weight:500">${r.mun}</td>
+      <td style="color:#1a2540;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.partido}">${r.partido}</td>
       <td class="num t-ing">${r.cc_ing  > 0 ? fmtM(r.cc_ing)  : '<span style="opacity:.3">—</span>'}</td>
       <td class="num t-gas">${r.cc_gas  > 0 ? fmtM(r.cc_gas)  : '<span style="opacity:.3">—</span>'}</td>
       <td class="num t-rec">${r.val_rec > 0 ? fmtM(r.val_rec) : '<span style="opacity:.3">—</span>'}</td>
