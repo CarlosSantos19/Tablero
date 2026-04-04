@@ -2,10 +2,10 @@
 generar_presupuesto_full.py
 ===========================
 Regenera data/presupuesto_full.json combinando:
-  - pagostres.db        → val_rec, val_aud, val_neto, pagado
-  - cc_financiero.json  → cc_ing, cc_gas (via cuentas_claras_index.json)
+  - pagostres.db          → val_rec, val_aud, val_neto, pagado
+  - cc_financiero_v2.json → cc_ing, cc_gas (por cand_id desde cuentas_claras_index.json)
 
-Deduplicación: cada fkey financiero se cuenta UNA sola vez por (corp, dpto, partido).
+Deduplicación: cada cand_id se cuenta UNA sola vez por (corp, dpto, mun, partido).
 
 Uso:
   python generar_presupuesto_full.py
@@ -16,10 +16,10 @@ import json, sqlite3, os, unicodedata, re, time
 BASE = os.path.dirname(os.path.abspath(__file__))
 DATA = os.path.join(BASE, "data")
 
-CC_IDX_FILE = os.path.join(DATA, "cuentas_claras_index.json")
-CC_FIN_FILE = os.path.join(DATA, "cc_financiero.json")
-DB_FILE     = os.path.join(DATA, "pagostres.db")
-OUT_FILE    = os.path.join(DATA, "presupuesto_full.json")
+CC_IDX_FILE  = os.path.join(DATA, "cuentas_claras_index.json")
+CC_FIN_V2    = os.path.join(DATA, "cc_financiero_v2.json")
+DB_FILE      = os.path.join(DATA, "pagostres.db")
+OUT_FILE     = os.path.join(DATA, "presupuesto_full.json")
 
 CORP_ID_MAP = {2:"GOBERNACION",3:"ALCALDIA",5:"ASAMBLEA",6:"CONCEJO",7:"JAL",8:"PERSONERIA",22:"OTRO"}
 CORPS_TERR  = {"ALCALDIA","CONCEJO","ASAMBLEA","GOBERNACION","JAL","ALCALDIA CONSULTA"}
@@ -33,49 +33,43 @@ def norm(s):
 
 print("Cargando datos...")
 
-# ── 1. Leer cc_financiero.json ────────────────────────────────────────────────
-with open(CC_FIN_FILE, encoding="utf-8") as f:
-    cc_fin = json.load(f)
-print(f"  cc_financiero: {len(cc_fin):,} entradas")
+# ── 1. Leer cc_financiero_v2.json (por cand_id) ───────────────────────────────
+with open(CC_FIN_V2, encoding="utf-8") as f:
+    cc_fin_v2 = json.load(f)
+print(f"  cc_financiero_v2: {len(cc_fin_v2):,} entradas")
 
 # ── 2. Leer cuentas_claras_index.json y construir lookup ─────────────────────
 with open(CC_IDX_FILE, encoding="utf-8") as f:
     cc_idx = json.load(f)
 
-# key_map: (tipo_id, org_id, corp_id, circ_id, dpto_id, mun_id) → (corp_n, dpto_n, mun_n, partido_n)
-# fin_agg: (corp_n, dpto_n, mun_n, partido_n) → {ingreso, gasto, n, fkeys_vistos}
+# fin_agg: (corp_n, dpto_n, mun_n, partido_n) → {ingreso, gasto, n, cands_vistos}
 fin_agg = {}
 
 for dpto_nom, dpto_data in cc_idx.items():
-    dpto_id = dpto_data.get("id", 0)
     dn = norm(dpto_nom)
     for mun_nom, mun_data in dpto_data.get("municipios", {}).items():
-        mun_id = mun_data.get("id", 0)
         mn = norm(mun_nom)
         for cand in mun_data.get("candidatos", []):
-            ti   = cand.get("tipo_id", 0)
-            oi   = cand.get("org_id",  0)
-            ci   = cand.get("corp_id", 0)
-            circ = cand.get("circ_id", 0)
+            ci        = cand.get("corp_id", 0)
             corp_n    = CORP_ID_MAP.get(ci, str(ci))
             partido_n = norm(cand.get("org", ""))
+            cand_id   = str(cand.get("cand_id", ""))
 
-            if corp_n not in CORPS_TERR:
+            if corp_n not in CORPS_TERR or not cand_id:
                 continue
 
-            fkey = f"{ti}|{oi}|{ci}|{circ}|{dpto_id}|{mun_id}"
-            fv   = cc_fin.get(fkey, {})
-            ing  = float(fv.get("total_ingreso", 0) or 0)
-            gas  = float(fv.get("total_gasto",   0) or 0)
+            fv  = cc_fin_v2.get(cand_id, {})
+            ing = float(fv.get("total_ingreso", 0) or 0)
+            gas = float(fv.get("total_gasto",   0) or 0)
 
             agg = (corp_n, dn, mn, partido_n)
             if agg not in fin_agg:
-                fin_agg[agg] = {"ingreso": 0.0, "gasto": 0.0, "n": 0, "fkeys": set()}
+                fin_agg[agg] = {"ingreso": 0.0, "gasto": 0.0, "n": 0, "cands": set()}
 
             fin_agg[agg]["n"] += 1
-            # Contar financiero solo una vez por fkey único
-            if fkey not in fin_agg[agg]["fkeys"]:
-                fin_agg[agg]["fkeys"].add(fkey)
+            # Contar financiero solo una vez por cand_id único
+            if cand_id not in fin_agg[agg]["cands"]:
+                fin_agg[agg]["cands"].add(cand_id)
                 fin_agg[agg]["ingreso"] += ing
                 fin_agg[agg]["gasto"]   += gas
 
@@ -129,10 +123,10 @@ totales = {"cc_ing": 0.0, "cc_gas": 0.0, "val_rec": 0, "val_aud": 0, "val_neto":
 por_corp = {}
 
 for agg, row in detalle_map.items():
-    fdata = fin_agg.get(agg, {"ingreso": 0.0, "gasto": 0.0, "n": 0})
+    fdata = fin_agg.get(agg, {"ingreso": 0.0, "gasto": 0.0, "n": 0, "cands": set()})
     cc_ing = round(fdata["ingreso"], 2)
     cc_gas = round(fdata["gasto"],   2)
-    cc_n   = fdata["n"]
+    cc_n   = len(fdata.get("cands", set())) or fdata["n"]
 
     entry = {
         "corp":    row["corp"],
