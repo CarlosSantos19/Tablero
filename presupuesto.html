@@ -219,6 +219,7 @@
             <th onclick="sortBy('partido')" style="cursor:pointer">Partido / Movimiento <i class="fa fa-sort fa-xs"></i></th>
             <th class="num t-ing"  onclick="sortBy('cc_ing')"  style="cursor:pointer">CC Ingresos <i class="fa fa-sort fa-xs"></i></th>
             <th class="num t-gas"  onclick="sortBy('cc_gas')"  style="cursor:pointer">CC Gastos <i class="fa fa-sort fa-xs"></i></th>
+            <th class="num" onclick="sortBy('votos')" style="cursor:pointer;color:#a78bfa">Votos <i class="fa fa-sort fa-xs"></i></th>
             <th class="num t-rec"  onclick="sortBy('val_rec')" style="cursor:pointer">Reconocido <i class="fa fa-sort fa-xs"></i></th>
             <th class="num t-aud"  onclick="sortBy('val_aud')" style="cursor:pointer">Auditoría <i class="fa fa-sort fa-xs"></i></th>
             <th class="num t-neto" onclick="sortBy('val_neto')" style="cursor:pointer">Neto Girado <i class="fa fa-sort fa-xs"></i></th>
@@ -353,7 +354,7 @@ function renderTabla() {
   document.getElementById('kpiReg').textContent = fmtN(_filtrados.length);
 
   if (!_filtrados.length) {
-    tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted py-3">Sin resultados</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="text-center text-muted py-3">Sin resultados</td></tr>';
     tfoot.innerHTML = '';
     return;
   }
@@ -366,6 +367,7 @@ function renderTabla() {
       <td style="color:#1a2540;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${r.partido}">${r.partido}</td>
       <td class="num t-ing">${r.cc_ing  > 0 ? fmtM(r.cc_ing)  : '<span style="opacity:.3">—</span>'}</td>
       <td class="num t-gas">${r.cc_gas  > 0 ? fmtM(r.cc_gas)  : '<span style="opacity:.3">—</span>'}</td>
+      <td class="num" style="color:#a78bfa">${r.votos > 0 ? fmtN(r.votos) : '<span style="opacity:.3">—</span>'}</td>
       <td class="num t-rec">${r.val_rec > 0 ? fmtM(r.val_rec) : '<span style="opacity:.3">—</span>'}</td>
       <td class="num t-aud">${r.val_aud > 0 ? fmtM(r.val_aud) : '<span style="opacity:.3">—</span>'}</td>
       <td class="num t-neto">${r.val_neto > 0 ? fmtM(r.val_neto) : '<span style="opacity:.3">—</span>'}</td>
@@ -378,11 +380,13 @@ function renderTabla() {
   const sumRec    = _filtrados.reduce((s,r) => s + (r.val_rec  || 0), 0);
   const sumAud    = _filtrados.reduce((s,r) => s + (r.val_aud  || 0), 0);
   const sumNeto   = _filtrados.reduce((s,r) => s + (r.val_neto || 0), 0);
+  const sumVotos  = _filtrados.reduce((s,r) => s + (r.votos   || 0), 0);
 
   tfoot.innerHTML = `<tr>
     <td colspan="4">TOTAL (${fmtN(_filtrados.length)} registros)</td>
     <td class="num t-ing">${fmtM(sumCcIng)}</td>
     <td class="num t-gas">${fmtM(sumCcGas)}</td>
+    <td class="num" style="color:#a78bfa">${fmtN(sumVotos)}</td>
     <td class="num t-rec">${fmtM(sumRec)}</td>
     <td class="num t-aud">${fmtM(sumAud)}</td>
     <td class="num t-neto">${fmtM(sumNeto)}</td>
@@ -392,8 +396,8 @@ function renderTabla() {
 
 function exportarCSV() {
   if (!_filtrados.length) return;
-  const cols = ['corp','dpto','mun','partido','cc_ing','cc_gas','val_rec','val_aud','val_neto','pagado'];
-  const hdrs = ['Corporación','Departamento','Municipio','Partido','CC Ingresos','CC Gastos','Reconocido','Auditoría','Neto Girado','Pagado'];
+  const cols = ['corp','dpto','mun','partido','cc_ing','cc_gas','votos','val_rec','val_aud','val_neto','pagado'];
+  const hdrs = ['Corporación','Departamento','Municipio','Partido','CC Ingresos','CC Gastos','Votos','Reconocido','Auditoría','Neto Girado','Pagado'];
   const rows = [hdrs.join(','), ..._filtrados.map(r =>
     cols.map(c => {
       const v = r[c];
