@@ -313,7 +313,7 @@ function aplicarFiltros() {
   const conCC  = document.getElementById('fConCC').value;
 
   _filtrados = _datos.filter(r => {
-    if (_corpActual && r.corp !== _corpActual) return false;
+    if (_corpActual && r.corp.toUpperCase() !== _corpActual.toUpperCase()) return false;
     if (dpto && r.dpto !== dpto) return false;
     if (pagado === '1' && !r.pagado)  return false;
     if (pagado === '0' && r.pagado)   return false;
