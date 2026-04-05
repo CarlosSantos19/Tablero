@@ -63,6 +63,10 @@ _repos_lock = threading.Lock()
 _gastos_rec_estado: dict = {"fase": "idle", "total": 0, "procesados": 0, "actualizados": 0, "msg": ""}
 _gastos_rec_lock = threading.Lock()
 
+# Estado de recuperación de ingresos faltantes
+_ing_rec_estado: dict = {"fase": "idle", "total": 0, "procesados": 0, "actualizados": 0, "msg": ""}
+_ing_rec_lock = threading.Lock()
+
 def _load_repos_cache(portal_dir: str) -> None:
     global _repos_full, _repos_agg, _repos_loaded
     with _repos_lock:
@@ -612,6 +616,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._handle_explorador()
             elif path == "/api/gastos_faltantes_status":
                 self._handle_gastos_faltantes_status()
+            elif path == "/api/ingresos_faltantes_status":
+                self._handle_ingresos_faltantes_status()
             else:
                 super().do_GET()
         except Exception as e:
@@ -630,6 +636,8 @@ class Handler(SimpleHTTPRequestHandler):
                 self._handle_guardar_liquidacion()
             elif path == "/api/recuperar_gastos_faltantes":
                 self._handle_recuperar_gastos_faltantes()
+            elif path == "/api/recuperar_ingresos_faltantes":
+                self._handle_recuperar_ingresos_faltantes()
             else:
                 self.send_response(404)
                 self.end_headers()
@@ -2443,6 +2451,35 @@ class Handler(SimpleHTTPRequestHandler):
         except Exception as e:
             self._send_error_json(str(e))
 
+    # ── /api/ingresos_faltantes_status ───────────────────────────────────────
+    def _handle_ingresos_faltantes_status(self):
+        """Devuelve el estado actual del proceso de recuperación de ingresos."""
+        with _ing_rec_lock:
+            estado = dict(_ing_rec_estado)
+        self._send_json(estado)
+
+    # ── /api/recuperar_ingresos_faltantes (POST) ─────────────────────────────
+    def _handle_recuperar_ingresos_faltantes(self):
+        """
+        POST /api/recuperar_ingresos_faltantes
+        Busca candidatos con gasto>0 e ingreso=0 en cc_financiero_v2.json,
+        consulta /ingreso/listarIngresos del CNE API para cada uno,
+        actualiza cc_financiero_v2.json y regenera presupuesto_full.json.
+        """
+        global _ing_rec_estado
+        if _cne_session is None:
+            return self._send_error_json("Sin sesion CNE. Inicie sesión primero.", 401)
+
+        with _ing_rec_lock:
+            if _ing_rec_estado.get("fase") == "trabajando":
+                return self._send_json({"ok": False, "msg": "Ya hay un proceso en ejecución."})
+            _ing_rec_estado = {"fase": "iniciando", "total": 0, "procesados": 0, "actualizados": 0, "msg": "Iniciando..."}
+
+        portal_dir = self.server.portal_dir if hasattr(self.server, "portal_dir") else os.getcwd()
+        t = threading.Thread(target=_recuperar_ingresos_bg, args=(portal_dir,), daemon=True)
+        t.start()
+        self._send_json({"ok": True, "msg": "Proceso de recuperación de ingresos iniciado."})
+
     # ── /api/gastos_faltantes_status ─────────────────────────────────────────
     def _handle_gastos_faltantes_status(self):
         """Devuelve el estado actual del proceso de recuperación de gastos."""
@@ -2652,6 +2689,163 @@ def _recuperar_gastos_bg(portal_dir: str) -> None:
         import traceback
         tb = traceback.format_exc()
         print(f"[RecGastos ERROR] {tb}")
+        _set("error", str(e))
+
+
+def _recuperar_ingresos_bg(portal_dir: str) -> None:
+    """Hilo de fondo: recupera ingresos faltantes desde el CNE API."""
+    global _ing_rec_estado, _fin_loaded
+
+    def _set(fase, msg, **kw):
+        with _ing_rec_lock:
+            _ing_rec_estado.update({"fase": fase, "msg": msg, **kw})
+
+    def _cne_get(endpoint, params=None):
+        if _cne_session is None:
+            return None
+        url  = CNE_API + "/" + endpoint.lstrip("/")
+        xsrf = requests.utils.unquote(_cne_session.cookies.get("XSRF-TOKEN", ""))
+        hdrs = {"Accept": "application/json", "X-Requested-With": "XMLHttpRequest",
+                "X-XSRF-TOKEN": xsrf, "Referer": CNE_API + "/"}
+        try:
+            r = _cne_session.get(url, params=params, headers=hdrs, timeout=30)
+            return r.json() if r.ok else None
+        except Exception:
+            return None
+
+    def _fetch_ingreso_total(cand_id, corp_id, circ_id, dpto_id, mun_id) -> float:
+        """Suma todos los ingresos de un candidato via listarIngresos (paginado)."""
+        params = {
+            "id_candi": cand_id, "id_corporacion": corp_id,
+            "id_circunscripcion": circ_id, "id_departamento": dpto_id,
+            "id_municipio": mun_id, "id_proceso": 7,
+            "page": 1, "buscar": "", "criterio": "formato_ingresos_gastos.nombre"
+        }
+        total = 0.0
+        last_page = 1
+        for pg in range(1, 21):
+            params["page"] = pg
+            r = _cne_get("/ingreso/listarIngresos", params)
+            if not r:
+                break
+            items = []
+            if isinstance(r, dict):
+                ing_block = r.get("ingreso", {})
+                if isinstance(ing_block, dict):
+                    items = ing_block.get("data", [])
+                    if pg == 1:
+                        lp = ing_block.get("last_page") or (r.get("pagination") or {}).get("last_page") or 1
+                        last_page = int(lp)
+                elif isinstance(ing_block, list):
+                    items = ing_block
+                elif isinstance(r.get("data"), list):
+                    items = r["data"]
+                    if pg == 1:
+                        last_page = int(r.get("last_page") or 1)
+            elif isinstance(r, list):
+                items = r
+            for it in items:
+                v = _parse_cop(it.get("valor") or it.get("monto") or it.get("total") or 0)
+                total += v
+            if pg >= last_page:
+                break
+        return total
+
+    try:
+        _set("trabajando", "Cargando datos…")
+        v2_path  = os.path.join(portal_dir, "data", "cc_financiero_v2.json")
+        idx_path = os.path.join(portal_dir, "data", "cuentas_claras_index.json")
+
+        with open(v2_path, encoding="utf-8") as f:
+            cc_v2 = json.load(f)
+        with open(idx_path, encoding="utf-8") as f:
+            cc_idx = json.load(f)
+
+        # Candidatos con gasto>0 e ingreso=0
+        problemáticos = {k for k, v in cc_v2.items()
+                        if float(v.get("total_gasto") or 0) > 0
+                        and float(v.get("total_ingreso") or 0) == 0}
+
+        _set("trabajando", f"{len(problemáticos)} candidatos a procesar", total=len(problemáticos))
+        print(f"[RecIngresos] Candidatos con gas>0 e ing=0: {len(problemáticos)}")
+
+        cand_loc: dict = {}
+        for dpto_nom, ddata in cc_idx.items():
+            dpto_id = ddata.get("id", 0)
+            for mun_nom, mdata in ddata.get("municipios", {}).items():
+                mun_id = mdata.get("id", 0)
+                for cand in mdata.get("candidatos", []):
+                    cid = str(cand.get("cand_id", ""))
+                    if cid in problemáticos:
+                        cand_loc[cid] = {
+                            "dpto_id": dpto_id, "mun_id": mun_id,
+                            "corp_id": cand.get("corp_id", 0),
+                            "circ_id": cand.get("circ_id", 0),
+                        }
+
+        _set("trabajando", f"Procesando {len(cand_loc)} candidatos localizados…",
+             total=len(cand_loc))
+        print(f"[RecIngresos] Localizados en índice: {len(cand_loc)}")
+
+        actualizados = 0
+        procesados   = 0
+        lock2 = threading.Lock()
+
+        def _procesar(cid):
+            nonlocal actualizados, procesados
+            loc = cand_loc[cid]
+            ing = _fetch_ingreso_total(
+                cid, loc["corp_id"], loc["circ_id"],
+                loc["dpto_id"], loc["mun_id"]
+            )
+            with lock2:
+                procesados += 1
+                if ing > 0:
+                    cc_v2[cid]["total_ingreso"] = round(ing, 2)
+                    actualizados += 1
+                if procesados % 50 == 0:
+                    _set("trabajando",
+                         f"Procesados {procesados}/{len(cand_loc)} | Actualizados {actualizados}",
+                         procesados=procesados, actualizados=actualizados)
+                    print(f"[RecIngresos] {procesados}/{len(cand_loc)} | act={actualizados}")
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            list(pool.map(_procesar, list(cand_loc.keys())))
+
+        _set("trabajando", f"Guardando cc_financiero_v2.json ({actualizados} actualizados)…",
+             procesados=procesados, actualizados=actualizados)
+
+        tmp = v2_path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(cc_v2, f, ensure_ascii=False, separators=(",", ":"))
+        os.replace(tmp, v2_path)
+
+        global _fin_loaded
+        _fin_loaded = False
+
+        _set("trabajando", "Regenerando presupuesto_full.json…",
+             procesados=procesados, actualizados=actualizados)
+        gen_script = os.path.join(portal_dir, "generar_presupuesto_full.py")
+        if os.path.exists(gen_script):
+            import subprocess
+            result = subprocess.run(
+                ["py", gen_script], cwd=portal_dir,
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode != 0:
+                print(f"[RecIngresos] Error generando presupuesto: {result.stderr[:500]}")
+            else:
+                print(f"[RecIngresos] presupuesto_full.json regenerado OK")
+
+        _set("listo",
+             f"Completado: {actualizados} ingresos recuperados de {len(cand_loc)} candidatos procesados.",
+             procesados=procesados, actualizados=actualizados)
+        print(f"[RecIngresos] LISTO: {actualizados} actualizados de {procesados} procesados")
+
+    except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"[RecIngresos ERROR] {tb}")
         _set("error", str(e))
 
 
